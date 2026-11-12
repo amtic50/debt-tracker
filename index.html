@@ -81,6 +81,7 @@ nav button.on{background:linear-gradient(135deg,rgba(31,79,216,.16),rgba(15,118,
 .urow input{margin:0;padding:8px 6px;font-size:15px}
 .uhead{font-size:.8rem;font-weight:700;color:var(--mut);padding:6px 0}
 .act .pr{background:var(--ac);color:#fff;border-color:var(--ac)}
+.row button{border:1px solid var(--ln);background:var(--s);border-radius:9px;padding:8px 12px;font-weight:600;min-height:36px}
 @media(prefers-reduced-motion:no-preference){.pg i,.seg i{transition:width .3s}}
 </style></head>
 <body>
@@ -142,12 +143,13 @@ function M(){const mine=S.cards.filter(isMine),oth=S.cards.filter(c=>!isMine(c))
  const em=sum(ae.map(x=>x.i)),lm=sum(S.loans.map(l=>+l.emi||0));
  const ym=new Date().toISOString().slice(0,7),lg=S.log.filter(x=>(x.date||'').startsWith(ym));
  return{cm,co,lo,debt:cm+lo,L,u:L?cm/L:0,em,lm,fixed:lm,rotAmt:cm+co-sum(ae.map(x=>x.pr)),pr:sum(ae.map(x=>x.pr)),it:sum(ae.map(x=>x.intr)),
-  fee:sum(lg.map(x=>+x.fee||0)),rot:sum(lg.map(x=>+x.amt||0))}}
+  fee:sum(lg.map(x=>+x.fee||0)),rot:sum(lg.filter(x=>x.kind!=='Bill paid').map(x=>+x.amt||0))}}
 
 const dl=d=>{const n=new Date(),t=new Date(n.getFullYear(),n.getMonth(),n.getDate());let x=new Date(t.getFullYear(),t.getMonth(),+d);if(x<t)x=new Date(t.getFullYear(),t.getMonth()+1,+d);return Math.round((x-t)/864e5)};
 
 function vOver(){const m=M(),sal=+S.set.salary||0;
  const cp=m.debt?m.cm/m.debt*100:0;
+ const ym=new Date().toISOString().slice(0,7);
  let h='<div class="hero"><p>Total debt if rotation stopped today</p><div class="fig">'+inr(m.debt)+'</div>'+
  '<div class="seg"><i style="width:'+cp+'%;background:var(--ac)"></i><i style="width:'+(m.debt?100-cp:0)+'%;background:var(--warn)"></i></div>'+
  '<div class="lg"><span>Cards <b>'+inr(m.cm)+'</b></span><span>Loans <b>'+inr(m.lo)+'</b></span>'+(m.co?'<span>Others\u2019 cards you use <b>'+inr(m.co)+'</b></span>':'')+'</div></div>';
@@ -156,9 +158,9 @@ function vOver(){const m=M(),sal=+S.set.salary||0;
  '<div class="k"><small>Card utilisation</small><b>'+Math.round(m.u*100)+'%</b><small>of '+inr(m.L)+' (shared limits once)</small></div>'+
  '<div class="k"><small>Card EMI principal left</small><b>'+inr(m.pr)+'</b><small>+'+inr(m.it)+' interest still to pay</small></div>'+
  '<div class="k"><small>Rotation fees this month</small><b>'+inr(m.fee)+'</b><small>on '+inr(m.rot)+' rotated</small></div></div>';
- const du=[...S.cards.filter(c=>c.due).map(c=>({n:cname(c)+(isMine(c)?'':' <i class="ch">'+esc(c.owner)+'</i>'),d:dl(c.due),a:c.min,k:'min due'})),
+ const du=[...S.cards.filter(c=>c.due).map(c=>({n:cname(c)+(isMine(c)?'':' <i class="ch">'+esc(c.owner)+'</i>'),d:dl(c.due),a:c.min,k:'min due',paid:S.log.some(x=>x.card===c.id&&x.kind==='Bill paid'&&(x.date||'').startsWith(ym))})),
   ...S.loans.filter(l=>l.due).map(l=>({n:esc(l.name),d:dl(l.due),a:l.emi,k:'EMI'}))].sort((a,b)=>a.d-b.d).slice(0,7);
- h+='<h2>Due next</h2><div class="pn">'+(du.length?du.map(x=>'<div class="row"><span>'+x.n+'<br><small>'+(x.a?inr(x.a)+' ':'')+x.k+'</small></span><span class="'+(x.d<=3?'soon':'')+'">'+(x.d?'in '+x.d+'d':'today')+'</span></div>').join(''):'<small>Add a due day on cards and loans to see them here.</small>')+'</div>';
+ h+='<h2>Due next</h2><div class="pn">'+(du.length?du.map(x=>'<div class="row"><span>'+x.n+'<br><small>'+(x.a?inr(x.a)+' ':'')+x.k+'</small></span>'+(x.paid?'<span class="neg">paid ✓</span>':'<span class="'+(x.d<=3?'soon':'')+'">'+(x.d?'in '+x.d+'d':'today')+'</span>')+'</div>').join(''):'<small>Add a due day on cards and loans to see them here.</small>')+'</div>';
  const sn=S.snaps.slice(-6).reverse();
  h+='<h2>Month by month</h2><div class="pn">'+(sn.length?sn.map((s,i)=>{const p=sn[i+1],d=p?s.d-p.d:0;
   return'<div class="row"><span>'+s.m+'</span><span>'+inr(s.d)+(p?' <small class="'+(d>0?'pos':'neg')+'">'+(d>0?'+':'\u2212')+inr(Math.abs(d))+'</small>':'')+'</span></div>'}).join(''):'<small>Save a snapshot each month to see whether debt is really falling.</small>')+
@@ -196,10 +198,15 @@ function vLoans(){if(!S.loans.length)return empty('No loans yet','Add personal l
  return'<div class="g2"><div class="k"><small>Outstanding</small><b>'+inr(sum(S.loans.map(l=>+l.out||0)))+'</b></div><div class="k"><small>EMIs per month</small><b>'+inr(sum(S.loans.map(l=>+l.emi||0)))+'</b></div></div>'+
  S.loans.slice().sort((a,b)=>(+b.out||0)-(+a.out||0)).map(l=>'<article class="cd" data-e="loans:'+l.id+'"><div class="hd"><div><b>'+esc(l.name)+'</b><small>'+(l.rate?l.rate+'% \u00B7 ':'')+(l.emi?inr(l.emi)+'/mo':'')+(l.due?' \u00B7 day '+l.due:'')+'</small></div><span class="am">'+inr(l.out)+'</span></div></article>').join('')}
 
-function vLog(){const m=M();
- return'<div class="g2"><div class="k"><small>Rotated this month</small><b>'+inr(m.rot)+'</b></div><div class="k"><small>Fees lost this month</small><b>'+inr(m.fee)+'</b></div></div>'+
- (S.log.length?S.log.slice().sort((a,b)=>(b.date||'')<(a.date||'')?-1:1).map(x=>'<article class="cd" data-e="log:'+x.id+'"><div class="hd"><div><b>'+inr(x.amt)+' rotated</b><small>'+esc(x.date)+(x.note?' \u00B7 '+esc(x.note):'')+'</small></div><span class="am pos">\u2212'+inr(x.fee)+'</span></div></article>').join(''):empty('No rotation entries','Log each rotation with the fees it cost. This is the real price of the loop.'))}
-
+function vLog(){const m=M(),ym=new Date().toISOString().slice(0,7);
+ const paid=id=>S.log.some(x=>x.card===id&&x.kind==='Bill paid'&&(x.date||'').startsWith(ym));
+ const bills=S.cards.filter(c=>+c.stmt>0).map(c=>({c,d:c.due?dl(c.due):99,paid:paid(c.id)})).sort((a,b)=>a.d-b.d);
+ const draws=id=>S.log.filter(x=>x.card===id&&x.kind!=='Bill paid'&&(x.date||'').startsWith(ym));
+ return '<div class="g2"><div class="k"><small>APDCL draws this month</small><b>'+inr(m.rot)+'</b></div><div class="k"><small>Fees lost this month</small><b>'+inr(m.fee)+'</b></div><div class="k"><small>Bills paid in full</small><b>'+bills.filter(b=>b.paid).length+' cards</b><small>'+inr(sum(bills.filter(b=>b.paid).map(b=>+b.c.stmt||0)))+'</small></div></div>'+
+ '<h2>Bills due — pay in full, draw back via APDCL</h2><div class="pn">'+(bills.length?bills.map(b=>'<div class="row"><span>'+cname(b.c)+'<br><small>Bill '+inr(b.c.stmt)+(b.c.due?' · due day '+b.c.due:'')+'</small></span>'+(b.paid?'<span class="neg">paid ✓</span>':'<span><button data-act="paidbill:'+b.c.id+'">Mark paid in full</button></span>')+'</div>').join(''):'<small>No statement bills on file — add them on the Update tab.</small>')+'</div>'+
+ '<h2>Draw back via APDCL</h2><div class="pn">'+(bills.filter(b=>b.paid).length?bills.filter(b=>b.paid).map(b=>{const dr=draws(b.c.id),got=sum(dr.map(x=>+x.amt||0)),left=(+b.c.stmt||0)-got;
+  return '<div class="gh"><b>'+cname(b.c)+'</b><small>'+inr(got)+' of '+inr(b.c.stmt)+' drawn</small></div><div class="pg"><i style="width:'+Math.min(100,(+b.c.stmt?got/+b.c.stmt*100:0))+'%"></i></div><div class="mt"><span>'+(left>0?inr(left)+' still to draw':'Fully drawn back ✓')+'</span><span>'+dr.length+' part'+(dr.length===1?'':'s')+'</span></div>'+dr.map(x=>'<div class="row"><span>'+esc(x.date||'')+(x.note?' · '+esc(x.note):'')+'<br><small>'+(x.mode||'Collected')+'</small></span><span>'+inr(x.amt)+'</span></div>').join('')+'<div class="act"><button data-act="logdraw:'+b.c.id+'">+ Log APDCL draw</button></div>'}).join(''):'<small>Mark a bill paid in full above, then log each APDCL draw here as you collect it from the consumer.</small>')+'</div>'+
+ '<h2>Rotation log</h2>'+(S.log.length?S.log.slice().sort((a,b)=>(b.date||'')<(a.date||'')?-1:1).map(x=>{const bill=x.kind==='Bill paid';return '<article class="cd" data-e="log:'+x.id+'"><div class="hd"><div><b>'+(bill?inr(x.amt)+' bill paid — '+cname(card(x.card)):inr(x.amt)+' APDCL draw'+(x.card?' — '+cname(card(x.card)):''))+'</b><small>'+esc(x.date||'')+(x.note?' · '+esc(x.note):'')+(x.mode?' · '+esc(x.mode):'')+'</small></div><span class="am '+(bill?'neg':'pos')+'">'+(bill?'✓':'−'+inr(x.fee))+'</span></div></article>'}).join(''):empty('No rotation entries','Log each rotation with the fees it cost. This is the real price of the loop.'))}
 function vUpd(){
  const rows=S.cards.slice().sort((a,b)=>(+b.out||0)-(+a.out||0)).map(c=>'<div class="urow"><div><b>'+esc(c.bank+' '+(c.name||''))+'</b><small>••'+esc(c.last4||'')+'</small></div><input type="number" step="any" inputmode="decimal" data-upd="cards|'+c.id+'|out" value="'+(c.out||'')+'" aria-label="Outstanding"><input type="number" step="any" inputmode="decimal" data-upd="cards|'+c.id+'|stmt" value="'+(c.stmt||'')+'" aria-label="Statement bill"><input type="number" step="any" inputmode="decimal" data-upd="cards|'+c.id+'|min" value="'+(c.min||'')+'" aria-label="Minimum due"></div>').join('');
  const lr=S.loans.slice().sort((a,b)=>(+b.out||0)-(+a.out||0)).map(l=>'<div class="urow"><div><b>'+esc(l.name)+'</b></div><input type="number" step="any" inputmode="decimal" data-upd="loans|'+l.id+'|out" value="'+(l.out||'')+'" aria-label="Outstanding"><input type="number" step="any" inputmode="decimal" data-upd="loans|'+l.id+'|emi" value="'+(l.emi||'')+'" aria-label="EMI per month"><span></span></div>').join('');
@@ -222,7 +229,7 @@ cards:[['bank','Bank','t','',1],['name','Card name','t'],['last4','Last 4 digits
 emis:[['card','On card','c'],['label','What it is','t','',1],['amt','Principal converted','m'],['rate','Interest % per year','m'],['ten','Tenure in months','m'],
  ['start','First instalment date','date'],['inst','Instalment amount','m','Leave blank to calculate it'],['fee','Processing fee paid','m']],
 loans:[['name','Lender or loan','t','',1],['out','Outstanding','m'],['emi','EMI per month','m'],['rate','Interest % per year','m'],['due','EMI day of month','d']],
-log:[['date','Date','date'],['amt','Amount rotated','m'],['fee','Fees lost','m','Wallet or gateway fee, GST, late fee, interest'],['note','Route','t','Example: Card A to wallet to Card B bill']]};
+log:[['date','Date','date'],['card','Card','c'],['kind','Type','s',['APDCL draw','Bill paid']],['amt','Amount','m'],['fee','Fees lost','m','Gateway or wallet fee, GST, late fee, interest'],['mode','Consumer paid by','s',['','Cash','Bank']],['note','Consumer / bill','t','Example: APDCL prepaid recharge, consumer name or number']]};
 const TT={cards:'card',emis:'EMI',loans:'loan',log:'rotation entry'};
 function fld(f,v){const k=f[0],l=f[1],t=f[2],h=f[3],r=f[4]?' required':'';let i;
  if(t==='s')i='<select name="'+k+'">'+h.map(o=>'<option'+(o===v?' selected':'')+'>'+o+'</option>').join('')+'</select>';
@@ -253,6 +260,8 @@ document.addEventListener('click',ev=>{const t=ev.target.closest('[data-e],[data
  else if(d.act&&d.act.slice(0,4)==='tgl:'){const id=d.act.slice(4);if(openCards.has(id))openCards.delete(id);else openCards.add(id);render()}
  else if(d.act==='saveupd')save();
  else if(d.act==='resetupd'){try{S=Object.assign(D(),JSON.parse(localStorage.getItem(K)))}catch(e){}render()}
+ else if(d.act&&d.act.slice(0,9)==='paidbill:'){const id=d.act.slice(9),c=card(id),ym2=new Date().toISOString().slice(0,7);if(c&&+c.stmt>0&&!S.log.some(x=>x.card===id&&x.kind==='Bill paid'&&(x.date||'').startsWith(ym2))){S.log.push({id:uid(),date:new Date().toISOString().slice(0,10),card:id,kind:'Bill paid',amt:+c.stmt,fee:0,mode:'',note:'Paid in full'});save()}}
+ else if(d.act&&d.act.slice(0,8)==='logdraw:'){const id=d.act.slice(8);edit('log','',{card:id,kind:'APDCL draw'})}
  else if(d.act==='snap')snap();
  else if(d.act==='imp')$('#imp').click();
  else if(d.act==='exp'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'}));a.download='debt-tracker-'+new Date().toISOString().slice(0,10)+'.json';a.click()}});
