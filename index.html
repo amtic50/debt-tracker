@@ -180,6 +180,7 @@ function vCards(){if(!S.cards.length)return empty('No cards yet','Enter the tota
   '<div class="mt"><span>'+Math.round(u*100)+'% of '+inr(c.limit)+(po.length>1?' (shared)':'')+'</span><span>'+(av<0?'over by '+inr(-av):inr(av)+' free')+'</span></div>'+
   (c.stmt?'<div class="mt"><span>Last statement '+inr(c.stmt)+'</span><span>Out is '+inr((+c.out||0)-(+c.stmt||0))+' above bill</span></div>':'')+
   (es.length?'<div class="mt"><span>'+es.length+' EMI'+(es.length>1?'s':'')+' · '+inr(sum(es.map(x=>x.c.i)))+'/mo</span><span>'+inr(sum(es.map(x=>x.c.pr)))+' principal · +'+inr(sum(es.map(x=>x.c.intr)))+' interest</span></div>':'')+
+  '<div class="mt"><span>Free to rotate</span><span>'+inr((+c.out||0)-sum(es.map(x=>x.c.pr)))+'</span></div>'+
   (open?'<div class="emis-sub"><div class="mt"><span>Card EMIs total</span><span>'+inr(sum(a.map(x=>x.c.i)))+'/mo · '+inr(sum(a.map(x=>x.c.pr)))+' principal · +'+inr(sum(a.map(x=>x.c.intr)))+' interest</span></div>'+(all.length?a.concat(d).map(eRow).join(''):'<div class="mt"><span>No EMIs on this card yet</span></div>')+'<button class="addemi" data-add="emis:'+c.id+'">+ Add EMI to this card</button></div>':'')+'</article>'}).join('')}
 function eRow(x){const e=x.e,c=x.c;
  return'<div class="er'+(c.done?' dn':'')+'" data-e="emis:'+e.id+'"><div class="hd"><div><b>'+esc(e.label||'EMI')+'</b><small>'+inr(e.amt)+' at '+(e.rate||0)+'% \u00B7 '+(e.ten||'?')+' months'+(endM(e)?' \u00B7 ends '+endM(e):'')+'</small></div><span class="am">'+(c.done?'ended':inr(c.i)+'/mo')+'</span></div>'+
