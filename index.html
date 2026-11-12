@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Debt Tracker</title>
+<style>
+:root{--bg:#eceff3;--s:#fbfcfd;--s2:#e3e8ee;--ink:#101a2b;--mut:#5d687a;--ln:#d5dbe3;--ac:#1f4fd8;--ok:#0f766e;--warn:#b45309;--bad:#b42318}
+@media(prefers-color-scheme:dark){:root{--bg:#0d1320;--s:#151d2e;--s2:#1e283c;--ink:#e8edf5;--mut:#8f9bb0;--ln:#263149;--ac:#7ea2ff;--ok:#5fd1c0;--warn:#f0b35a;--bad:#ff8f7e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:calc(env(safe-area-inset-top,0px) + 56px) 14px calc(env(safe-area-inset-bottom,0px) + 84px)}
+.fig,.am,h2{font-family:"Iowan Old Style",Palatino,"Palatino Linotype",Georgia,serif;font-variant-numeric:tabular-nums}
+main{max-width:640px;margin:0 auto}
+header{position:fixed;top:0;left:0;right:0;z-index:5;background:var(--bg);padding:calc(env(safe-area-inset-top,0px) + 8px) 14px 8px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--ln)}
+header b{font-size:1.05rem}
+#sync{font-size:.78rem;border:1px solid var(--ln);background:var(--s);color:var(--mut);border-radius:99px;padding:5px 11px;min-height:0}
+nav{position:fixed;bottom:0;left:0;right:0;z-index:5;background:var(--s);border-top:1px solid var(--ln);display:flex;padding:6px 6px calc(env(safe-area-inset-bottom,0px) + 6px)}
+nav button{flex:1;border:0;background:none;color:var(--mut);font-size:.82rem;font-weight:600;padding:10px 2px;border-radius:10px;min-height:44px}
+nav button.on{color:var(--ac);background:var(--s2)}
+button{font:inherit;cursor:pointer;color:var(--ink)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+#add{position:fixed;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 74px);z-index:6;border:0;background:var(--ac);color:#fff;font-weight:700;border-radius:99px;padding:13px 20px;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.hero{padding:6px 2px 14px}
+.hero p{margin:0;color:var(--mut);font-size:.9rem}
+.fig{font-size:2.7rem;line-height:1.1;font-weight:700;letter-spacing:-.02em;margin:2px 0 10px}
+.seg{display:flex;height:10px;border-radius:99px;overflow:hidden;background:var(--s2)}
+.seg i{display:block;height:100%}
+.lg{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:.85rem;color:var(--mut)}
+.lg b{color:var(--ink)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:6px 0 4px}
+.k,.cd,.pn,.er{background:var(--s);border:1px solid var(--ln);border-radius:12px;padding:12px 13px}
+.k small,.mt,.hd small{color:var(--mut);font-size:.82rem}
+.k b{display:block;font-size:1.25rem;font-family:Palatino,Georgia,serif;font-variant-numeric:tabular-nums}
+h2{font-size:1.1rem;margin:22px 2px 8px}
+.cd{margin-bottom:10px}
+.hd{display:flex;gap:10px;align-items:center}
+.hd>div{flex:1;min-width:0}.hd small{display:block}
+.am{font-size:1.1rem;font-weight:700;white-space:nowrap}
+.bd{width:38px;height:38px;border-radius:9px;color:#fff;font-weight:800;display:grid;place-items:center;flex:none;text-transform:uppercase;font-size:.85rem}
+.ch{font-style:normal;font-size:.72rem;font-weight:700;background:var(--s2);border-radius:99px;padding:1px 8px;color:var(--ink)}
+.pg{height:6px;background:var(--s2);border-radius:99px;overflow:hidden;margin:10px 0 6px}
+.pg i{display:block;height:100%;background:var(--ac)}.pg i.warn{background:var(--warn)}.pg i.bad{background:var(--bad)}
+.mt{display:flex;justify-content:space-between;gap:10px;margin-top:3px}
+.gh{margin:16px 2px 6px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.gh small{color:var(--mut)}
+.er{margin-bottom:8px}.er.dn{opacity:.55}
+.row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--ln)}
+.row:last-child{border:0}.row small{color:var(--mut)}
+.soon{color:var(--warn);font-weight:700}
+.em{text-align:center;padding:40px 20px;color:var(--mut)}.em b{color:var(--ink);display:block;font-size:1.05rem;margin-bottom:4px}
+.pn label{display:block;margin-bottom:10px}
+.act{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.act button,dialog button{border:1px solid var(--ln);background:var(--s);border-radius:10px;padding:10px 14px;font-weight:600;min-height:44px}
+dialog{width:calc(100% - 24px);max-width:520px;max-height:88vh;border:1px solid var(--ln);border-radius:16px;background:var(--s);color:var(--ink);padding:16px}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+dialog h2{margin:0 0 12px}
+label{display:block;font-size:.85rem;font-weight:600;margin-bottom:11px}
+label small{display:block;font-weight:400;color:var(--mut);margin-top:2px}
+input,select{width:100%;margin-top:4px;font:inherit;font-size:16px;padding:10px;border:1px solid var(--ln);border-radius:9px;background:var(--bg);color:var(--ink)}
+.ac{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:6px}
+.ac .pr{background:var(--ac);color:#fff;border-color:var(--ac)}.ac #del{margin-right:auto;color:var(--bad)}
+.pos{color:var(--bad)}.neg{color:var(--ok)}
+@media(prefers-reduced-motion:no-preference){.pg i,.seg i{transition:width .3s}}
+</style></head>
+<body>
+<header><b>Debt Tracker</b><button id="sync">Local only</button></header>
+<main id="v"></main>
+<button id="add">+ Add</button>
+<nav id="nav"></nav>
+<dialog id="dg"><form id="fm" method="dialog"><h2 id="dgt"></h2><div id="dgf"></div>
+<div class="ac"><button type="button" id="del">Delete</button><button type="button" id="cn">Cancel</button><button type="button" id="more">Save and add another</button><button type="submit" class="pr">Save</button></div></form></dialog>
+<input type="file" id="imp" accept=".json" hidden>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+/* Paste your Firebase web config here, e.g. {apiKey:"...",authDomain:"...",projectId:"...",appId:"..."} */
+const FB={apiKey:"AIzaSyBYMAE7gGu1O7uN21SmBKx-i4v6FL-O1Xw",authDomain:"amit-finance-cards.firebaseapp.com",projectId:"amit-finance-cards",storageBucket:"amit-finance-cards.firebasestorage.app",messagingSenderId:"1010340695041",appId:"1:1010340695041:web:0bb75f2bf24aef9ec7c400"};
+const K='debt-tracker-v2';
+const D=()=>({cards:[],emis:[],loans:[],log:[],snaps:[],set:{salary:0,fore:3},t:0});
+let S;try{S=Object.assign(D(),JSON.parse(localStorage.getItem(K)))}catch(e){S=D()}
+let T='over',ref=null,user=null;
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const inr=n=>'\u20B9'+Math.round(n||0).toLocaleString('en-IN');
+const sum=a=>a.reduce((x,y)=>x+y,0);
+const uid=()=>Math.random().toString(36).slice(2,9);
+const card=id=>S.cards.find(c=>c.id===id);
+const hue=s=>{let h=0;for(const ch of String(s))h=(h*31+ch.charCodeAt(0))%360;return'hsl('+h+' 42% 34%)'};
+const empty=(t,h)=>'<div class="em"><b>'+t+'</b>'+h+'</div>';
+const cname=c=>c?esc(c.bank+' '+(c.name||''))+(c.last4?' \u2022\u2022'+esc(c.last4):''):'Unassigned';
+
+function save(){S.t=Date.now();try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}
+ if(ref)ref.set({s:JSON.parse(JSON.stringify(S)),t:S.t}).catch(()=>st('Sync failed'));render()}
+
+/* EMI maths: paid count from first-instalment date, reducing-balance principal */
+function ec(e){const P=+e.amt||0,n=+e.ten||0,r=(+e.rate||0)/1200;
+ let i=+e.inst||0;if(!i&&n)i=r?P*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1):P/n;
+ let k=0;if(e.start&&n){const s=new Date(e.start),t=new Date();
+  k=(t.getFullYear()-s.getFullYear())*12+t.getMonth()-s.getMonth()+(t.getDate()>=s.getDate()?1:0);k=Math.max(0,Math.min(n,k))}
+ let pr=P;if(n&&k>=n)pr=0;else if(r)pr=P*Math.pow(1+r,k)-i*(Math.pow(1+r,k)-1)/r;else if(n)pr=P-P*k/n;
+ pr=Math.max(0,pr);const done=n>0&&k>=n;
+ return{i,k,n,pr,done,intr:done?0:Math.max(0,(n-k)*i-pr),fore:done?0:pr*(1+(+S.set.fore||0)/100)}}
+const endM=e=>{if(!e.start||!e.ten)return'';const d=new Date(e.start);d.setMonth(d.getMonth()+(+e.ten)-1);return d.toLocaleDateString('en-IN',{month:'short',year:'numeric'})};
+const emisOf=id=>S.emis.filter(e=>e.card===id).map(e=>({e,c:ec(e)}));
+const isMine=c=>!c.owner||c.owner==='Mine';
+
+function M(){const mine=S.cards.filter(isMine),oth=S.cards.filter(c=>!isMine(c));
+ const cm=sum(mine.map(c=>+c.out||0)),co=sum(oth.map(c=>+c.out||0)),lo=sum(S.loans.map(l=>+l.out||0));
+ const lim={};mine.forEach(c=>{const k=c.pool||c.id;lim[k]=Math.max(lim[k]||0,+c.limit||0)});
+ const L=sum(Object.values(lim)),mid=new Set(mine.map(c=>c.id));
+ const ae=S.emis.filter(e=>mid.has(e.card)||!card(e.card)).map(e=>ec(e)).filter(x=>!x.done);
+ const em=sum(ae.map(x=>x.i)),lm=sum(S.loans.map(l=>+l.emi||0));
+ const ym=new Date().toISOString().slice(0,7),lg=S.log.filter(x=>(x.date||'').startsWith(ym));
+ return{cm,co,lo,debt:cm+lo,L,u:L?cm/L:0,em,lm,fixed:em+lm,pr:sum(ae.map(x=>x.pr)),it:sum(ae.map(x=>x.intr)),
+  fee:sum(lg.map(x=>+x.fee||0)),rot:sum(lg.map(x=>+x.amt||0))}}
+
+const dl=d=>{const n=new Date(),t=new Date(n.getFullYear(),n.getMonth(),n.getDate());let x=new Date(t.getFullYear(),t.getMonth(),+d);if(x<t)x=new Date(t.getFullYear(),t.getMonth()+1,+d);return Math.round((x-t)/864e5)};
+
+function vOver(){const m=M(),sal=+S.set.salary||0;
+ const cp=m.debt?m.cm/m.debt*100:0;
+ let h='<div class="hero"><p>Total debt if rotation stopped today</p><div class="fig">'+inr(m.debt)+'</div>'+
+ '<div class="seg"><i style="width:'+cp+'%;background:var(--ac)"></i><i style="width:'+(m.debt?100-cp:0)+'%;background:var(--warn)"></i></div>'+
+ '<div class="lg"><span>Cards <b>'+inr(m.cm)+'</b></span><span>Loans <b>'+inr(m.lo)+'</b></span>'+(m.co?'<span>Others\u2019 cards you use <b>'+inr(m.co)+'</b></span>':'')+'</div></div>';
+ h+='<div class="g2"><div class="k"><small>Fixed monthly (EMIs + loans)</small><b>'+inr(m.fixed)+'</b><small>'+(sal?Math.round(m.fixed/sal*100)+'% of salary':'Set salary below')+'</small></div>'+
+ '<div class="k"><small>Card utilisation</small><b>'+Math.round(m.u*100)+'%</b><small>of '+inr(m.L)+' (shared limits once)</small></div>'+
+ '<div class="k"><small>Card EMI principal left</small><b>'+inr(m.pr)+'</b><small>+'+inr(m.it)+' interest still to pay</small></div>'+
+ '<div class="k"><small>Rotation fees this month</small><b>'+inr(m.fee)+'</b><small>on '+inr(m.rot)+' rotated</small></div></div>';
+ const du=[...S.cards.filter(c=>c.due).map(c=>({n:cname(c)+(isMine(c)?'':' <i class="ch">'+esc(c.owner)+'</i>'),d:dl(c.due),a:c.min,k:'min due'})),
+  ...S.loans.filter(l=>l.due).map(l=>({n:esc(l.name),d:dl(l.due),a:l.emi,k:'EMI'}))].sort((a,b)=>a.d-b.d).slice(0,7);
+ h+='<h2>Due next</h2><div class="pn">'+(du.length?du.map(x=>'<div class="row"><span>'+x.n+'<br><small>'+(x.a?inr(x.a)+' ':'')+x.k+'</small></span><span class="'+(x.d<=3?'soon':'')+'">'+(x.d?'in '+x.d+'d':'today')+'</span></div>').join(''):'<small>Add a due day on cards and loans to see them here.</small>')+'</div>';
+ const sn=S.snaps.slice(-6).reverse();
+ h+='<h2>Month by month</h2><div class="pn">'+(sn.length?sn.map((s,i)=>{const p=sn[i+1],d=p?s.d-p.d:0;
+  return'<div class="row"><span>'+s.m+'</span><span>'+inr(s.d)+(p?' <small class="'+(d>0?'pos':'neg')+'">'+(d>0?'+':'\u2212')+inr(Math.abs(d))+'</small>':'')+'</span></div>'}).join(''):'<small>Save a snapshot each month to see whether debt is really falling.</small>')+
+ '<div class="act"><button data-act="snap">Save this month\u2019s snapshot</button></div></div>';
+ h+='<h2>Settings and backup</h2><div class="pn"><label>Net monthly salary<input type="number" inputmode="decimal" data-set="salary" value="'+(S.set.salary||'')+'"></label>'+
+ '<label>Foreclosure charge on EMIs (%)<input type="number" step="any" inputmode="decimal" data-set="fore" value="'+(S.set.fore||'')+'"></label>'+
+ '<div class="act"><button data-act="exp">Export backup</button><button data-act="imp">Import backup</button></div></div>';
+ return h}
+
+function vCards(){if(!S.cards.length)return empty('No cards yet','Enter the total outstanding from your bank app, not only the statement bill.');
+ return S.cards.slice().sort((a,b)=>(+b.out||0)-(+a.out||0)).map(c=>{
+  const po=c.pool?S.cards.filter(x=>x.pool===c.pool):[c],pout=sum(po.map(x=>+x.out||0)),u=c.limit?pout/c.limit:0,av=(+c.limit||0)-pout;
+  const es=emisOf(c.id).filter(x=>!x.c.done);
+  return'<article class="cd" data-e="cards:'+c.id+'"><div class="hd"><span class="bd" style="background:'+hue(c.bank)+'">'+esc((c.bank||'?').slice(0,2))+'</span><div><b>'+esc(c.bank+' '+(c.name||''))+'</b><small>'+(c.last4?'\u2022\u2022'+esc(c.last4)+' ':'')+(isMine(c)?'':'<i class="ch">'+esc(c.owner)+'</i> ')+(c.due?'due day '+c.due:'')+'</small></div><span class="am">'+inr(c.out)+'</span></div>'+
+  '<div class="pg"><i class="'+(u>1?'bad':u>.8?'warn':'')+'" style="width:'+Math.min(100,u*100)+'%"></i></div>'+
+  '<div class="mt"><span>'+Math.round(u*100)+'% of '+inr(c.limit)+(po.length>1?' (shared)':'')+'</span><span>'+(av<0?'over by '+inr(-av):inr(av)+' free')+'</span></div>'+
+  (c.stmt?'<div class="mt"><span>Last statement '+inr(c.stmt)+'</span><span>Out is '+inr((+c.out||0)-(+c.stmt||0))+' above bill</span></div>':'')+
+  (es.length?'<div class="mt"><span>'+es.length+' EMI'+(es.length>1?'s':'')+' \u00B7 '+inr(sum(es.map(x=>x.c.i)))+'/mo</span><span>'+inr(sum(es.map(x=>x.c.pr)))+' principal left</span></div>':'')+'</article>'}).join('')}
+
+function eRow(x){const e=x.e,c=x.c;
+ return'<div class="er'+(c.done?' dn':'')+'" data-e="emis:'+e.id+'"><div class="hd"><div><b>'+esc(e.label||'EMI')+'</b><small>'+inr(e.amt)+' at '+(e.rate||0)+'% \u00B7 '+(e.ten||'?')+' months'+(endM(e)?' \u00B7 ends '+endM(e):'')+'</small></div><span class="am">'+(c.done?'ended':inr(c.i)+'/mo')+'</span></div>'+
+ '<div class="pg"><i style="width:'+(c.n?c.k/c.n*100:0)+'%"></i></div><div class="mt"><span>'+c.k+' of '+c.n+' paid</span><span>'+inr(c.pr)+' left \u00B7 +'+inr(c.intr)+' interest</span></div>'+
+ (c.done?'':'<div class="mt"><span>Foreclose today</span><span>'+inr(c.fore)+'</span></div>')+'</div>'}
+
+function vEmis(){if(!S.cards.length)return empty('Add a card first','EMIs are tracked card by card.');
+ if(!S.emis.length)return empty('No EMIs yet','Tap Add, pick the card, and use \u201CSave and add another\u201D to enter many quickly.');
+ const gs=S.cards.map(c=>({c,l:emisOf(c.id)})).filter(g=>g.l.length),or=S.emis.filter(e=>!card(e.card)).map(e=>({e,c:ec(e)}));
+ if(or.length)gs.push({c:null,l:or});
+ return gs.map(g=>{const a=g.l.filter(x=>!x.c.done).sort((x,y)=>y.c.pr-x.c.pr),d=g.l.filter(x=>x.c.done);
+  return'<div class="gh"><b>'+cname(g.c)+'</b><small>'+a.length+' running \u00B7 '+inr(sum(a.map(x=>x.c.i)))+'/mo \u00B7 '+inr(sum(a.map(x=>x.c.pr)))+' left \u00B7 +'+inr(sum(a.map(x=>x.c.intr)))+' interest</small></div>'+
+  a.concat(d).map(eRow).join('')}).join('')}
+
+function vLoans(){if(!S.loans.length)return empty('No loans yet','Add personal loans, consumer loans and credit lines.');
+ return'<div class="g2"><div class="k"><small>Outstanding</small><b>'+inr(sum(S.loans.map(l=>+l.out||0)))+'</b></div><div class="k"><small>EMIs per month</small><b>'+inr(sum(S.loans.map(l=>+l.emi||0)))+'</b></div></div>'+
+ S.loans.slice().sort((a,b)=>(+b.out||0)-(+a.out||0)).map(l=>'<article class="cd" data-e="loans:'+l.id+'"><div class="hd"><div><b>'+esc(l.name)+'</b><small>'+(l.rate?l.rate+'% \u00B7 ':'')+(l.emi?inr(l.emi)+'/mo':'')+(l.due?' \u00B7 day '+l.due:'')+'</small></div><span class="am">'+inr(l.out)+'</span></div></article>').join('')}
+
+function vLog(){const m=M();
+ return'<div class="g2"><div class="k"><small>Rotated this month</small><b>'+inr(m.rot)+'</b></div><div class="k"><small>Fees lost this month</small><b>'+inr(m.fee)+'</b></div></div>'+
+ (S.log.length?S.log.slice().sort((a,b)=>(b.date||'')<(a.date||'')?-1:1).map(x=>'<article class="cd" data-e="log:'+x.id+'"><div class="hd"><div><b>'+inr(x.amt)+' rotated</b><small>'+esc(x.date)+(x.note?' \u00B7 '+esc(x.note):'')+'</small></div><span class="am pos">\u2212'+inr(x.fee)+'</span></div></article>').join(''):empty('No rotation entries','Log each rotation with the fees it cost. This is the real price of the loop.'))}
+
+const TABS=[['over','Overview',vOver],['cards','Cards',vCards],['emis','EMIs',vEmis],['loans','Loans',vLoans],['log','Rotation',vLog]];
+const ADD={cards:'card',emis:'EMI',loans:'loan',log:'entry'};
+function render(){$('#nav').innerHTML=TABS.map(t=>'<button data-tab="'+t[0]+'" class="'+(T===t[0]?'on':'')+'">'+t[1]+'</button>').join('');
+ $('#v').innerHTML=TABS.find(t=>t[0]===T)[2]();
+ const a=$('#add');a.hidden=T==='over';a.textContent='+ Add '+(ADD[T]||'');a.dataset.add=T}
+
+/* Forms: [key,label,type,hint/options,required] */
+const SC={
+cards:[['bank','Bank','t','',1],['name','Card name','t'],['last4','Last 4 digits','n'],['owner','Whose card','s',['Mine','Zakir','Brother','Other']],
+ ['out','Total outstanding','m','As in the bank app, including unbilled spends and EMI principal'],['limit','Credit limit','m'],['pool','Shared-limit group','t','Type the same word on cards that share one limit'],
+ ['stmt','Latest statement bill','m'],['min','Minimum due','m'],['due','Due day of month','d'],['note','Note','t']],
+emis:[['card','On card','c'],['label','What it is','t','',1],['amt','Principal converted','m'],['rate','Interest % per year','m'],['ten','Tenure in months','m'],
+ ['start','First instalment date','date'],['inst','Instalment amount','m','Leave blank to calculate it'],['fee','Processing fee paid','m']],
+loans:[['name','Lender or loan','t','',1],['out','Outstanding','m'],['emi','EMI per month','m'],['rate','Interest % per year','m'],['due','EMI day of month','d']],
+log:[['date','Date','date'],['amt','Amount rotated','m'],['fee','Fees lost','m','Wallet or gateway fee, GST, late fee, interest'],['note','Route','t','Example: Card A to wallet to Card B bill']]};
+const TT={cards:'card',emis:'EMI',loans:'loan',log:'rotation entry'};
+function fld(f,v){const k=f[0],l=f[1],t=f[2],h=f[3],r=f[4]?' required':'';let i;
+ if(t==='s')i='<select name="'+k+'">'+h.map(o=>'<option'+(o===v?' selected':'')+'>'+o+'</option>').join('')+'</select>';
+ else if(t==='c')i='<select name="'+k+'">'+S.cards.map(c=>'<option value="'+c.id+'"'+(c.id===v?' selected':'')+'>'+cname(c)+'</option>').join('')+'</select>';
+ else i='<input name="'+k+'" value="'+esc(v)+'"'+r+' '+(t==='m'?'type="number" step="any" inputmode="decimal"':t==='d'?'type="number" min="1" max="31" inputmode="numeric"':t==='date'?'type="date"':t==='n'?'type="text" maxlength="4" inputmode="numeric"':'type="text"')+'>';
+ return'<label>'+l+i+(h&&t!=='s'?'<small>'+h+'</small>':'')+'</label>'}
+function edit(k,id,pre){if(k==='emis'&&!S.cards.length){alert('Add a card first, then add its EMIs.');return}
+ const it=id?S[k].find(x=>x.id===id):Object.assign({date:new Date().toISOString().slice(0,10)},pre||{});
+ const dg=$('#dg');dg.dataset.k=k;dg.dataset.id=id||'';$('#dgt').textContent=(id?'Edit ':'Add ')+TT[k];
+ $('#dgf').innerHTML=SC[k].map(f=>fld(f,it[f[0]]!=null?it[f[0]]:(f[0]==='owner'?'Mine':''))).join('');
+ $('#del').hidden=!id;$('#more').hidden=!!id||k==='cards'||k==='loans';dg.showModal()}
+function commit(again){const dg=$('#dg'),k=dg.dataset.k,id=dg.dataset.id,fd=new FormData($('#fm')),o={};
+ SC[k].forEach(f=>{let v=fd.get(f[0]);if(f[2]==='m'||f[2]==='d')v=v===''||v==null?'':+v;o[f[0]]=v});
+ if(id)Object.assign(S[k].find(x=>x.id===id),o);else{o.id=uid();S[k].push(o)}
+ dg.close();save();if(again)edit(k,'',{card:o.card})}
+$('#fm').onsubmit=e=>{e.preventDefault();commit(false)};
+$('#more').onclick=()=>{if($('#fm').reportValidity())commit(true)};
+$('#cn').onclick=()=>$('#dg').close();
+$('#del').onclick=()=>{const dg=$('#dg'),k=dg.dataset.k,id=dg.dataset.id;
+ if(!confirm('Delete this '+TT[k]+(k==='cards'?' and all its EMIs':'')+'?'))return;
+ S[k]=S[k].filter(x=>x.id!==id);if(k==='cards')S.emis=S.emis.filter(e=>e.card!==id);dg.close();save()};
+
+function snap(){const m=M(),ym=new Date().toISOString().slice(0,7);S.snaps=S.snaps.filter(s=>s.m!==ym);S.snaps.push({m:ym,d:m.debt,e:m.co});S.snaps.sort((a,b)=>a.m<b.m?-1:1);save()}
+document.addEventListener('click',ev=>{const t=ev.target.closest('[data-e],[data-add],[data-tab],[data-act]');if(!t)return;const d=t.dataset;
+ if(d.tab){T=d.tab;render();window.scrollTo(0,0)}
+ else if(d.e){const p=d.e.split(':');edit(p[0],p[1])}
+ else if(d.add){const p=d.add.split(':');edit(p[0],'',p[0]==='emis'&&p[1]?{card:p[1]}:{})}
+ else if(d.act==='snap')snap();
+ else if(d.act==='imp')$('#imp').click();
+ else if(d.act==='exp'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'}));a.download='debt-tracker-'+new Date().toISOString().slice(0,10)+'.json';a.click()}});
+document.addEventListener('change',ev=>{const t=ev.target;if(t.dataset&&t.dataset.set){S.set[t.dataset.set]=+t.value||0;save()}});
+$('#imp').onchange=ev=>{const f=ev.target.files[0];if(!f)return;const r=new FileReader();
+ r.onload=()=>{try{S=Object.assign(D(),JSON.parse(r.result));save()}catch(e){alert('That file is not a valid backup.')}};r.readAsText(f)};
+
+/* Firebase sync: Google sign-in, one Firestore doc per user, newest write wins */
+function st(t){$('#sync').textContent=t}
+function initFB(){if(!FB||!window.firebase){st('Local only');return}
+ firebase.initializeApp(FB);
+ firebase.auth().onAuthStateChanged(u=>{user=u;if(!u){ref=null;st('Sign in to sync');return}
+  ref=firebase.firestore().doc('debtTracker/'+u.uid);st('Syncing\u2026');
+  ref.onSnapshot(s=>{const d=s.data();
+   if(d&&d.t>S.t){S=Object.assign(D(),d.s);try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}render()}
+   else if(!d||d.t<S.t)ref.set({s:JSON.parse(JSON.stringify(S)),t:S.t});
+   st('Synced')},()=>st('Sync blocked'))})}
+$('#sync').onclick=()=>{if(FB&&window.firebase&&!user)firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>alert(e.message))};
+render();initFB();
+</script></body></html>
