@@ -75,6 +75,12 @@ input,select{width:100%;margin-top:4px;font:inherit;font-size:16px;padding:10px;
 .hero{background:linear-gradient(135deg,rgba(31,79,216,.09),rgba(15,118,110,.09),rgba(180,83,9,.07));border-radius:16px;padding:14px 14px 16px;margin-bottom:6px}
 #add{background:linear-gradient(135deg,#1f4fd8,#0f766e)}
 nav button.on{background:linear-gradient(135deg,rgba(31,79,216,.16),rgba(15,118,110,.16))}
+.urow{display:grid;grid-template-columns:minmax(0,1.5fr) repeat(3,minmax(0,1fr));gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--ln)}
+.urow:last-child{border:0}
+.urow small{display:block;color:var(--mut);font-size:.8rem}
+.urow input{margin:0;padding:8px 6px;font-size:15px}
+.uhead{font-size:.8rem;font-weight:700;color:var(--mut);padding:6px 0}
+.act .pr{background:var(--ac);color:#fff;border-color:var(--ac)}
 @media(prefers-reduced-motion:no-preference){.pg i,.seg i{transition:width .3s}}
 </style></head>
 <body>
@@ -135,7 +141,7 @@ function M(){const mine=S.cards.filter(isMine),oth=S.cards.filter(c=>!isMine(c))
  const ae=S.emis.filter(e=>mid.has(e.card)||!card(e.card)).map(e=>ec(e)).filter(x=>!x.done);
  const em=sum(ae.map(x=>x.i)),lm=sum(S.loans.map(l=>+l.emi||0));
  const ym=new Date().toISOString().slice(0,7),lg=S.log.filter(x=>(x.date||'').startsWith(ym));
- return{cm,co,lo,debt:cm+lo,L,u:L?cm/L:0,em,lm,fixed:em+lm,pr:sum(ae.map(x=>x.pr)),it:sum(ae.map(x=>x.intr)),
+ return{cm,co,lo,debt:cm+lo,L,u:L?cm/L:0,em,lm,fixed:lm,rotAmt:cm+co-sum(ae.map(x=>x.pr)),pr:sum(ae.map(x=>x.pr)),it:sum(ae.map(x=>x.intr)),
   fee:sum(lg.map(x=>+x.fee||0)),rot:sum(lg.map(x=>+x.amt||0))}}
 
 const dl=d=>{const n=new Date(),t=new Date(n.getFullYear(),n.getMonth(),n.getDate());let x=new Date(t.getFullYear(),t.getMonth(),+d);if(x<t)x=new Date(t.getFullYear(),t.getMonth()+1,+d);return Math.round((x-t)/864e5)};
@@ -145,7 +151,8 @@ function vOver(){const m=M(),sal=+S.set.salary||0;
  let h='<div class="hero"><p>Total debt if rotation stopped today</p><div class="fig">'+inr(m.debt)+'</div>'+
  '<div class="seg"><i style="width:'+cp+'%;background:var(--ac)"></i><i style="width:'+(m.debt?100-cp:0)+'%;background:var(--warn)"></i></div>'+
  '<div class="lg"><span>Cards <b>'+inr(m.cm)+'</b></span><span>Loans <b>'+inr(m.lo)+'</b></span>'+(m.co?'<span>Others\u2019 cards you use <b>'+inr(m.co)+'</b></span>':'')+'</div></div>';
- h+='<div class="g2"><div class="k"><small>Fixed monthly (EMIs + loans)</small><b>'+inr(m.fixed)+'</b><small>'+(sal?Math.round(m.fixed/sal*100)+'% of salary':'Set salary below')+'</small></div>'+
+ h+='<div class="hero"><p>Free to rotate</p><div class="fig">'+inr(m.rotAmt)+'</div>'+'<div class="lg"><span>All cards outstanding <b>'+inr(m.cm+m.co)+'</b></span><span>Locked in EMIs <b>−'+inr(m.pr)+'</b></span></div></div>';
+ h+='<div class="g2"><div class="k"><small>Fixed monthly (loans only)</small><b>'+inr(m.fixed)+'</b><small>'+(sal?Math.round(m.fixed/sal*100)+'% of salary':'Set salary below')+'</small></div>'+
  '<div class="k"><small>Card utilisation</small><b>'+Math.round(m.u*100)+'%</b><small>of '+inr(m.L)+' (shared limits once)</small></div>'+
  '<div class="k"><small>Card EMI principal left</small><b>'+inr(m.pr)+'</b><small>+'+inr(m.it)+' interest still to pay</small></div>'+
  '<div class="k"><small>Rotation fees this month</small><b>'+inr(m.fee)+'</b><small>on '+inr(m.rot)+' rotated</small></div></div>';
@@ -170,8 +177,8 @@ function vCards(){if(!S.cards.length)return empty('No cards yet','Enter the tota
   '<div class="pg"><i class="'+(u>1?'bad':u>.8?'warn':'')+'" style="width:'+Math.min(100,u*100)+'%"></i></div>'+
   '<div class="mt"><span>'+Math.round(u*100)+'% of '+inr(c.limit)+(po.length>1?' (shared)':'')+'</span><span>'+(av<0?'over by '+inr(-av):inr(av)+' free')+'</span></div>'+
   (c.stmt?'<div class="mt"><span>Last statement '+inr(c.stmt)+'</span><span>Out is '+inr((+c.out||0)-(+c.stmt||0))+' above bill</span></div>':'')+
-  (es.length?'<div class="mt"><span>'+es.length+' EMI'+(es.length>1?'s':'')+' · '+inr(sum(es.map(x=>x.c.i)))+'/mo</span><span>'+inr(sum(es.map(x=>x.c.pr)))+' principal left</span></div>':'')+
-  (open?'<div class="emis-sub">'+(all.length?a.concat(d).map(eRow).join(''):'<div class="mt"><span>No EMIs on this card yet</span></div>')+'<button class="addemi" data-add="emis:'+c.id+'">+ Add EMI to this card</button></div>':'')+'</article>'}).join('')}
+  (es.length?'<div class="mt"><span>'+es.length+' EMI'+(es.length>1?'s':'')+' · '+inr(sum(es.map(x=>x.c.i)))+'/mo</span><span>'+inr(sum(es.map(x=>x.c.pr)))+' principal · +'+inr(sum(es.map(x=>x.c.intr)))+' interest</span></div>':'')+
+  (open?'<div class="emis-sub"><div class="mt"><span>Card EMIs total</span><span>'+inr(sum(a.map(x=>x.c.i)))+'/mo · '+inr(sum(a.map(x=>x.c.pr)))+' principal · +'+inr(sum(a.map(x=>x.c.intr)))+' interest</span></div>'+(all.length?a.concat(d).map(eRow).join(''):'<div class="mt"><span>No EMIs on this card yet</span></div>')+'<button class="addemi" data-add="emis:'+c.id+'">+ Add EMI to this card</button></div>':'')+'</article>'}).join('')}
 function eRow(x){const e=x.e,c=x.c;
  return'<div class="er'+(c.done?' dn':'')+'" data-e="emis:'+e.id+'"><div class="hd"><div><b>'+esc(e.label||'EMI')+'</b><small>'+inr(e.amt)+' at '+(e.rate||0)+'% \u00B7 '+(e.ten||'?')+' months'+(endM(e)?' \u00B7 ends '+endM(e):'')+'</small></div><span class="am">'+(c.done?'ended':inr(c.i)+'/mo')+'</span></div>'+
  '<div class="pg"><i style="width:'+(c.n?c.k/c.n*100:0)+'%"></i></div><div class="mt"><span>'+c.k+' of '+c.n+' paid</span><span>'+inr(c.pr)+' left \u00B7 +'+inr(c.intr)+' interest</span></div>'+
@@ -193,11 +200,19 @@ function vLog(){const m=M();
  return'<div class="g2"><div class="k"><small>Rotated this month</small><b>'+inr(m.rot)+'</b></div><div class="k"><small>Fees lost this month</small><b>'+inr(m.fee)+'</b></div></div>'+
  (S.log.length?S.log.slice().sort((a,b)=>(b.date||'')<(a.date||'')?-1:1).map(x=>'<article class="cd" data-e="log:'+x.id+'"><div class="hd"><div><b>'+inr(x.amt)+' rotated</b><small>'+esc(x.date)+(x.note?' \u00B7 '+esc(x.note):'')+'</small></div><span class="am pos">\u2212'+inr(x.fee)+'</span></div></article>').join(''):empty('No rotation entries','Log each rotation with the fees it cost. This is the real price of the loop.'))}
 
-const TABS=[['over','Overview',vOver],['cards','Cards',vCards],['emis','EMIs',vEmis],['loans','Loans',vLoans],['log','Rotation',vLog]];
+function vUpd(){
+ const rows=S.cards.slice().sort((a,b)=>(+b.out||0)-(+a.out||0)).map(c=>'<div class="urow"><div><b>'+esc(c.bank+' '+(c.name||''))+'</b><small>••'+esc(c.last4||'')+'</small></div><input type="number" step="any" inputmode="decimal" data-upd="cards|'+c.id+'|out" value="'+(c.out||'')+'" aria-label="Outstanding"><input type="number" step="any" inputmode="decimal" data-upd="cards|'+c.id+'|stmt" value="'+(c.stmt||'')+'" aria-label="Statement bill"><input type="number" step="any" inputmode="decimal" data-upd="cards|'+c.id+'|min" value="'+(c.min||'')+'" aria-label="Minimum due"></div>').join('');
+ const lr=S.loans.slice().sort((a,b)=>(+b.out||0)-(+a.out||0)).map(l=>'<div class="urow"><div><b>'+esc(l.name)+'</b></div><input type="number" step="any" inputmode="decimal" data-upd="loans|'+l.id+'|out" value="'+(l.out||'')+'" aria-label="Outstanding"><input type="number" step="any" inputmode="decimal" data-upd="loans|'+l.id+'|emi" value="'+(l.emi||'')+'" aria-label="EMI per month"><span></span></div>').join('');
+ return '<div class="pn"><small>Type the new figures straight into the table, then tap Save all. Nothing is saved until you do.</small></div>'+
+ '<div class="pn"><div class="urow uhead"><div>Card</div><span>Outstanding</span><span>Statement</span><span>Min due</span></div>'+rows+'</div>'+
+ '<h2>Loans</h2><div class="pn"><div class="urow uhead"><div>Loan</div><span>Outstanding</span><span>EMI / month</span><span></span></div>'+lr+'</div>'+
+ '<div class="act"><button data-act="saveupd" class="pr">Save all</button><button data-act="resetupd">Discard changes</button></div>'}
+
+const TABS=[['over','Overview',vOver],['cards','Cards',vCards],['loans','Loans',vLoans],['log','Rotation',vLog],['upd','Update',vUpd]];
 const ADD={cards:'card',emis:'EMI',loans:'loan',log:'entry'};
 function render(){$('#nav').innerHTML=TABS.map(t=>'<button data-tab="'+t[0]+'" class="'+(T===t[0]?'on':'')+'">'+t[1]+'</button>').join('');
  $('#v').innerHTML=TABS.find(t=>t[0]===T)[2]();
- const a=$('#add');a.hidden=T==='over';a.textContent='+ Add '+(ADD[T]||'');a.dataset.add=T}
+ const a=$('#add');a.hidden=T==='over'||T==='upd';a.textContent='+ Add '+(ADD[T]||'');a.dataset.add=T}
 
 /* Forms: [key,label,type,hint/options,required] */
 const SC={
@@ -236,10 +251,13 @@ document.addEventListener('click',ev=>{const t=ev.target.closest('[data-e],[data
  else if(d.e){const p=d.e.split(':');edit(p[0],p[1])}
  else if(d.add){const p=d.add.split(':');edit(p[0],'',p[0]==='emis'&&p[1]?{card:p[1]}:{})}
  else if(d.act&&d.act.slice(0,4)==='tgl:'){const id=d.act.slice(4);if(openCards.has(id))openCards.delete(id);else openCards.add(id);render()}
+ else if(d.act==='saveupd')save();
+ else if(d.act==='resetupd'){try{S=Object.assign(D(),JSON.parse(localStorage.getItem(K)))}catch(e){}render()}
  else if(d.act==='snap')snap();
  else if(d.act==='imp')$('#imp').click();
  else if(d.act==='exp'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'}));a.download='debt-tracker-'+new Date().toISOString().slice(0,10)+'.json';a.click()}});
 document.addEventListener('change',ev=>{const t=ev.target;if(t.dataset&&t.dataset.set){S.set[t.dataset.set]=+t.value||0;save()}});
+document.addEventListener('input',ev=>{const t=ev.target;if(t.dataset&&t.dataset.upd){const p=t.dataset.upd.split('|');const o=S[p[0]].find(x=>x.id===p[1]);if(o)o[p[2]]=t.value===''?'':+t.value}});
 $('#imp').onchange=ev=>{const f=ev.target.files[0];if(!f)return;const r=new FileReader();
  r.onload=()=>{try{S=Object.assign(D(),JSON.parse(r.result));save()}catch(e){alert('That file is not a valid backup.')}};r.readAsText(f)};
 
