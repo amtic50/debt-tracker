@@ -152,13 +152,13 @@ const dl=d=>{const n=new Date(),t=new Date(n.getFullYear(),n.getMonth(),n.getDat
 
 function vOver(){const m=M(),sal=+S.set.salary||0;
  const all=SCOPE==='all',debt=all?m.debtA:m.debt,cards=all?m.cm+m.co:m.cm,lim=all?m.LA:m.L,pr=all?m.prA:m.pr,it=all?m.itA:m.it,u=all?m.uA:m.u;
- const cp=debt?cards/debt*100:0;
+ const lockedPct=lim?pr/lim*100:0;
  const ym=new Date().toISOString().slice(0,7);
  let h='<div class="scope"><button data-act="scope:mine" class="'+(all?'':'on')+'">Mine only</button><button data-act="scope:all" class="'+(all?'on':'')+'">All \u00b7 incl. others</button></div>';
- h+='<div class="hero"><p>Total debt if rotation stopped today'+(all?' \u2014 all accounts':'')+'</p><div class="fig">'+inr(debt)+'</div>'+
- '<div class="seg"><i style="width:'+cp+'%;background:var(--ac)"></i><i style="width:'+(debt?100-cp:0)+'%;background:var(--warn)"></i></div>'+
- '<div class="lg"><span>Cards <b>'+inr(cards)+'</b></span><span>Loans <b>'+inr(m.lo)+'</b></span>'+(all?'<span>Mine <b>'+inr(m.cm)+'</b> \u00b7 Others <b>'+inr(m.co)+'</b></span>':(m.co?'<span>Other cards you use <b>'+inr(m.co)+'</b></span>':''))+'</div></div>';  h+='<div class="hero"><p>Free to rotate</p><div class="fig">'+inr(m.rotAmt)+'</div>'+'<div class="lg"><span>All cards outstanding <b>'+inr(m.cm+m.co)+'</b></span><span>Locked in EMIs <b>−'+inr(m.pr)+'</b></span></div></div>';
- h+='<div class="hero"><p>Rotation amount</p><div class="fig">'+inr(all?m.rotLimA:m.rotLim)+'</div>'+'<div class="lg"><span>Total limit <b>'+inr(lim)+'</b></span><span>Locked in EMIs <b>\u2212'+inr(pr)+'</b></span><span>Total limit minus EMI principal \u2014 the most that can rotate</span></div></div>';  h+='<div class="g2"><div class="k"><small>Fixed monthly (loans only)</small><b>'+inr(m.fixed)+'</b><small>'+(sal?Math.round(m.fixed/sal*100)+'% of salary':'Set salary below')+'</small></div>'+
+ h+='<div class="hero"><p>Rotation amount \u2014 to pay if rotation stopped today</p><div class="fig">'+inr(all?m.rotLimA:m.rotLim)+'</div>'+
+ '<div class="seg"><i style="width:'+(100-lockedPct)+'%;background:var(--ac)"></i><i style="width:'+lockedPct+'%;background:var(--warn)"></i></div>'+
+ '<div class="lg"><span>Total limit <b>'+inr(lim)+'</b></span><span>Locked in EMIs <b>\u2212'+inr(pr)+'</b></span></div>'+
+ '<div class="lg"><span>Total debt <b>'+inr(debt)+'</b></span><span>Cards <b>'+inr(cards)+'</b></span><span>Loans <b>'+inr(m.lo)+'</b></span>'+(all?'<span>Mine <b>'+inr(m.cm)+'</b> \u00b7 Others <b>'+inr(m.co)+'</b></span>':(m.co?'<span>Other cards you use <b>'+inr(m.co)+'</b></span>':''))+'</div></div>';  h+='<div class="g2"><div class="k"><small>Fixed monthly (loans only)</small><b>'+inr(m.fixed)+'</b><small>'+(sal?Math.round(m.fixed/sal*100)+'% of salary':'Set salary below')+'</small></div>'+
  '<div class="k"><small>Card utilisation</small><b>'+Math.round(u*100)+'%</b><small>of '+inr(lim)+' (shared limits once)</small></div>'+
  '<div class="k"><small>Card EMI principal left</small><b>'+inr(pr)+'</b><small>+'+inr(it)+' interest still to pay</small></div>'+
  '<div class="k"><small>Rotation fees this month</small><b>'+inr(m.fee)+'</b><small>on '+inr(m.rot)+' rotated</small></div></div>';
