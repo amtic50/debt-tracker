@@ -111,6 +111,10 @@ const inr=n=>'\u20B9'+Math.round(n||0).toLocaleString('en-IN');
 const sum=a=>a.reduce((x,y)=>x+y,0);
 const uid=()=>Math.random().toString(36).slice(2,9);
 const card=id=>S.cards.find(c=>c.id===id);
+const billOf=c=>Math.round(+(c&&c.stmt)||0);
+/* Bill-paid entries are stamped with the statement they settled (x.bill). Paid-toward-current-bill counts only entries stamped with the current stmt; unstamped legacy entries fall back to the old same-month rule. */
+const paidAmtM=(id,ym)=>{const c=card(id);return sum(S.log.filter(x=>x.card===id&&x.kind==='Bill paid'&&(x.bill!=null?Math.round(+x.bill||0)===billOf(c):(x.date||'').startsWith(ym))).map(x=>+x.amt||0))};
+function stampBills(){let ch=false;S.log.forEach(x=>{if(x.kind==='Bill paid'&&x.bill==null){const c=card(x.card);x.bill=(x.note||'').indexOf('Paid in full')===0?+x.amt||0:(c&&+c.stmt>0?+c.stmt:+x.amt||0);ch=true}});return ch}
 const hue=s=>{let h=0;for(const ch of String(s))h=(h*31+ch.charCodeAt(0))%360;return'hsl('+h+' 42% 34%)'};
 const BANKC={SBI:'#2563eb',BOBCARD:'#ea580c',ICICI:'#f97316',HDFC:'#0e7490',Axis:'#9d174d',PNB:'#a16207'};
 const bankC=b=>BANKC[b]||hue(b);
@@ -162,7 +166,7 @@ function vOver(){const m=M(),sal=+S.set.salary||0;
  '<div class="k"><small>Card utilisation</small><b>'+Math.round(u*100)+'%</b><small>of '+inr(lim)+' (shared limits once)</small></div>'+
  '<div class="k"><small>Card EMI principal left</small><b>'+inr(pr)+'</b><small>+'+inr(it)+' interest still to pay</small></div>'+
  '<div class="k"><small>Rotation fees this month</small><b>'+inr(m.fee)+'</b><small>on '+inr(m.rot)+' rotated</small></div></div>';
- const du=[...S.cards.filter(c=>c.due).map(c=>({n:cname(c)+(isMine(c)?'':' <i class="ch">'+esc(c.owner)+'</i>'),d:dl(c.due),a:c.min,k:'min due',paid:S.log.some(x=>x.card===c.id&&x.kind==='Bill paid'&&(x.date||'').startsWith(ym))})),
+ const du=[...S.cards.filter(c=>c.due).map(c=>({n:cname(c)+(isMine(c)?'':' <i class="ch">'+esc(c.owner)+'</i>'),d:dl(c.due),a:c.min,k:'min due',paid:paidAmtM(c.id,ym)>0})),
   ...S.loans.filter(l=>l.due).map(l=>({n:esc(l.name),d:dl(l.due),a:l.emi,k:'EMI'}))].sort((a,b)=>a.d-b.d).slice(0,7);
  h+='<h2>Due next</h2><div class="pn">'+(du.length?du.map(x=>'<div class="row"><span>'+x.n+'<br><small>'+(x.a?inr(x.a)+' ':'')+x.k+'</small></span>'+(x.paid?'<span class="neg">paid ✓</span>':'<span class="'+(x.d<=3?'soon':'')+'">'+(x.d?'in '+x.d+'d':'today')+'</span>')+'</div>').join(''):'<small>Add a due day on cards and loans to see them here.</small>')+'</div>';
  const sn=S.snaps.slice(-6).reverse();
@@ -203,9 +207,9 @@ function vLoans(){if(!S.loans.length)return empty('No loans yet','Add personal l
  return'<div class="g2"><div class="k"><small>Outstanding</small><b>'+inr(sum(S.loans.map(l=>+l.out||0)))+'</b></div><div class="k"><small>EMIs per month</small><b>'+inr(sum(S.loans.map(l=>+l.emi||0)))+'</b></div></div>'+
  S.loans.slice().sort((a,b)=>(+b.out||0)-(+a.out||0)).map(l=>'<article class="cd" data-e="loans:'+l.id+'"><div class="hd"><div><b>'+esc(l.name)+'</b><small>'+(l.rate?l.rate+'% \u00B7 ':'')+(l.emi?inr(l.emi)+'/mo':'')+(l.due?' \u00B7 day '+l.due:'')+'</small></div><span class="am">'+inr(l.out)+'</span></div></article>').join('')}
 
-const paidAmtM=(id,ym)=>sum(S.log.filter(x=>x.card===id&&x.kind==='Bill paid'&&(x.date||'').startsWith(ym)).map(x=>+x.amt||0));
+/* paidAmtM is defined near the top (bill-stamped). */
 function vLog(){const m=M(),ym=new Date().toISOString().slice(0,7);
- const paid=id=>S.log.some(x=>x.card===id&&x.kind==='Bill paid'&&(x.date||'').startsWith(ym));
+ const paid=id=>paidAmtM(id,ym)>0;
  const paidAmt=id=>paidAmtM(id,ym);
  const y0=+ym.slice(0,4),m0=+ym.slice(5,7),MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
  const pm=m0===1?(y0-1)+'-12':y0+'-'+String(m0-1).padStart(2,'0');
@@ -258,7 +262,7 @@ function edit(k,id,pre){if(k==='emis'&&!S.cards.length){alert('Add a card first,
  $('#del').hidden=!id;$('#more').hidden=!!id||k==='cards'||k==='loans';dg.showModal()}
 function commit(again){const dg=$('#dg'),k=dg.dataset.k,id=dg.dataset.id,fd=new FormData($('#fm')),o={};
  SC[k].forEach(f=>{let v=fd.get(f[0]);if(f[2]==='m'||f[2]==='d')v=v===''||v==null?'':+v;o[f[0]]=v});
- if(id)Object.assign(S[k].find(x=>x.id===id),o);else{o.id=uid();S[k].push(o)}
+ if(id)Object.assign(S[k].find(x=>x.id===id),o);else{o.id=uid();if(k==='log'&&o.kind==='Bill paid'&&o.bill==null){const c=card(o.card);o.bill=c&&+c.stmt>0?+c.stmt:+o.amt||0}S[k].push(o)}
  dg.close();save();if(again)edit(k,'',{card:o.card})}
 $('#fm').onsubmit=e=>{e.preventDefault();commit(false)};
 $('#more').onclick=()=>{if($('#fm').reportValidity())commit(true)};
@@ -275,7 +279,7 @@ document.addEventListener('click',ev=>{const t=ev.target.closest('[data-e],[data
  else if(d.act&&d.act.slice(0,4)==='tgl:'){const id=d.act.slice(4);if(openCards.has(id))openCards.delete(id);else openCards.add(id);render()} else if(d.act&&d.act.slice(0,6)==='scope:'){SCOPE=d.act.slice(6);render()}
  else if(d.act==='saveupd')save();
  else if(d.act==='resetupd'){try{S=Object.assign(D(),JSON.parse(localStorage.getItem(K)))}catch(e){}render()}
- else if(d.act&&d.act.slice(0,9)==='paidbill:'){const id=d.act.slice(9),c=card(id),ym2=new Date().toISOString().slice(0,7);if(c&&+c.stmt>0){const rem=+c.stmt-paidAmtM(id,ym2);if(rem>0){S.log.push({id:uid(),date:new Date().toISOString().slice(0,10),card:id,kind:'Bill paid',amt:rem,fee:0,mode:'',note:rem<+c.stmt?'Paid rest in full':'Paid in full'});save()}}}
+ else if(d.act&&d.act.slice(0,9)==='paidbill:'){const id=d.act.slice(9),c=card(id),ym2=new Date().toISOString().slice(0,7);if(c&&+c.stmt>0){const rem=+c.stmt-paidAmtM(id,ym2);if(rem>0){S.log.push({id:uid(),date:new Date().toISOString().slice(0,10),card:id,kind:'Bill paid',amt:rem,fee:0,mode:'',note:rem<+c.stmt?'Paid rest in full':'Paid in full',bill:+c.stmt});save()}}}
  else if(d.act&&d.act.slice(0,8)==='logdraw:'){const id=d.act.slice(8);edit('log','',{card:id,kind:'APDCL draw'})}
  else if(d.act&&d.act.slice(0,9)==='partbill:'){const id=d.act.slice(9),c=card(id),ym2=new Date().toISOString().slice(0,7),rem=c?+c.stmt-paidAmtM(id,ym2):0;if(c&&rem>0)edit('log','',{card:id,kind:'Bill paid',amt:rem,note:'Part payment'})}
  else if(d.act==='snap')snap();
@@ -284,7 +288,7 @@ document.addEventListener('click',ev=>{const t=ev.target.closest('[data-e],[data
 document.addEventListener('change',ev=>{const t=ev.target;if(t.dataset&&t.dataset.set){S.set[t.dataset.set]=+t.value||0;save()}});
 document.addEventListener('input',ev=>{const t=ev.target;if(t.dataset&&t.dataset.upd){const p=t.dataset.upd.split('|');const o=S[p[0]].find(x=>x.id===p[1]);if(o)o[p[2]]=t.value===''?'':+t.value}});
 $('#imp').onchange=ev=>{const f=ev.target.files[0];if(!f)return;const r=new FileReader();
- r.onload=()=>{try{S=Object.assign(D(),JSON.parse(r.result));save()}catch(e){alert('That file is not a valid backup.')}};r.readAsText(f)};
+ r.onload=()=>{try{S=Object.assign(D(),JSON.parse(r.result));stampBills();save()}catch(e){alert('That file is not a valid backup.')}};r.readAsText(f)};
 
 /* Firebase sync: Google sign-in, one Firestore doc per user, newest write wins */
 function st(t){$('#sync').textContent=t}
@@ -293,9 +297,9 @@ function initFB(){if(!FB||!window.firebase){st('Local only');return}
  firebase.auth().onAuthStateChanged(u=>{user=u;if(!u){ref=null;st('Sign in to sync');return}
   ref=firebase.firestore().doc('debtTracker/'+u.uid);st('Syncing\u2026');
   ref.onSnapshot(s=>{const d=s.data();
-   if(d&&d.t>S.t){S=Object.assign(D(),d.s);try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}render()}
+   if(d&&d.t>S.t){S=Object.assign(D(),d.s);if(stampBills()){save()}else{try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}render()}}
    else if(!d||d.t<S.t)ref.set({s:JSON.parse(JSON.stringify(S)),t:S.t});
    st('Synced')},()=>st('Sync blocked'))})}
 $('#sync').onclick=()=>{if(FB&&window.firebase&&!user)firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>alert(e.message))};
-render();initFB();
+if(stampBills())save();render();initFB();
 </script></body></html>
