@@ -316,7 +316,7 @@ function vCards(){if(!S.cards.length)return empty('No cards yet','Enter the tota
   return'<article class="cd" data-e="cards:'+c.id+'" style="--bc:'+bankC(c.bank)+'"><div class="hd">'+cardArt(c)+'<div><b>'+esc(c.bank+' '+(c.name||''))+'</b><small>'+(c.last4?'••'+esc(c.last4)+' ':'')+(isMine(c)?'':'<i class="ch">'+esc(c.owner)+'</i> ')+(c.due?'due day '+c.due:'')+'</small></div><span class="am">'+inr(c.out)+'</span><button class="tgl" data-act="tgl:'+c.id+'" aria-expanded="'+open+'" aria-label="'+(open?'Hide EMIs':'Show EMIs')+'">'+(open?'▾':'▸')+'</button></div>'+
   '<div class="pg"><i class="'+(u>1?'bad':u>.8?'warn':'')+'" style="width:'+Math.min(100,u*100)+'%"></i></div>'+
   '<div class="mt"><span>'+Math.round(u*100)+'% of '+inr(c.limit)+(po.length>1?' (shared)':'')+'</span><span>'+(av<0?'over by '+inr(-av):inr(av)+' free')+'</span></div>'+
-  (c.stmt?'<div class="mt"><span>Last statement '+inr(c.stmt)+'</span><span>Out is '+inr((+c.out||0)-(+c.stmt||0))+' above bill</span></div>':'')+
+  (c.stmt?'<div class="mt"><span>Last statement '+inr(c.stmt)+'</span><span>Out is '+inr((+c.out||0)-remBill(c.id))+' above bill</span></div>':'')+
   (es.length?'<div class="mt"><span>'+es.length+' EMI'+(es.length>1?'s':'')+' · '+inr(sum(es.map(x=>x.c.i)))+'/mo</span><span>'+inr(sum(es.map(x=>x.c.pr)))+' principal · +'+inr(sum(es.map(x=>x.c.intr)))+' interest</span></div>':'')+
   '<div class="mt"><span>Free to rotate</span><span>'+inr((+c.out||0)-sum(es.map(x=>x.c.pr)))+'</span></div>'+
   (open?'<div class="emis-sub"><div class="mt"><span>Card EMIs total</span><span>'+inr(sum(a.map(x=>x.c.i)))+'/mo · '+inr(sum(a.map(x=>x.c.pr)))+' principal · +'+inr(sum(a.map(x=>x.c.intr)))+' interest</span></div>'+(all.length?a.concat(d).map(eRow).join(''):'<div class="mt"><span>No EMIs on this card yet</span></div>')+'<button class="addemi" data-add="emis:'+c.id+'">+ Add EMI to this card</button></div>':'')+'</article>'}).join('')}
@@ -346,6 +346,10 @@ function vLog(){const m=M(),ym=new Date().toISOString().slice(0,7);
  const pmLab=MN[(m0===1?12:m0-1)-1]+' '+(m0===1?y0-1:y0);
  const bills=S.cards.filter(c=>+c.stmt>0||paid(c.id)).map(c=>{const pa=paidAmt(c.id);return{c,d:c.due?dl(c.due):99,paid:paid(c.id),pa,full:+c.stmt>0&&Math.round(pa)>=Math.round(+c.stmt)}}).sort((a,b)=>a.d-b.d);
  const draws=id=>{const b=billOf(card(id));return S.log.filter(x=>x.card===id&&x.kind!=='Bill paid'&&x.bill!=null&&Math.round(+x.bill||0)===b)};
+/* Log entries move the card outstanding (Cards tab): a Bill paid lowers it by the payment, an APDCL draw raises it by the draw. Editing or deleting reverses the change. */
+function adjOut(cardId,delta){const c=card(cardId);if(c)c.out=Math.max(0,Math.round(((+c.out||0)+delta)*100)/100)}
+const outFx=(kind,amt)=>kind==='Bill paid'?-(+amt||0):kind==='APDCL draw'?+(+amt||0):0;
+const remBill=id=>{const c=card(id);return c?Math.max(0,Math.round(((+c.stmt||0)-paidAmtM(id,new Date().toISOString().slice(0,7)))*100)/100):0};
  const drawsIn=(id,mo)=>sum(S.log.filter(x=>x.card===id&&x.kind!=='Bill paid'&&(x.date||'').startsWith(mo)).map(x=>+x.amt||0));
  const grows=S.cards.map(c=>({c,t:drawsIn(c.id,ym),p:drawsIn(c.id,pm)})).filter(g=>g.t>0||g.p>0).sort((a,b)=>b.t-a.t);
  const tt=sum(grows.map(g=>g.t)),tp=sum(grows.map(g=>g.p));
@@ -396,14 +400,14 @@ function edit(k,id,pre){if(k==='emis'&&!S.cards.length){alert('Add a card first,
  $('#del').hidden=!id;$('#more').hidden=!!id||k==='cards'||k==='loans';dg.showModal()}
 function commit(again){const dg=$('#dg'),k=dg.dataset.k,id=dg.dataset.id,fd=new FormData($('#fm')),o={};
  SC[k].forEach(f=>{let v=fd.get(f[0]);if(f[2]==='m'||f[2]==='d')v=v===''||v==null?'':+v;o[f[0]]=v});
- if(id)Object.assign(S[k].find(x=>x.id===id),o);else{o.id=uid();if(k==='log'&&o.kind==='Bill paid'&&o.bill==null){const c=card(o.card);o.bill=c&&+c.stmt>0?+c.stmt:+o.amt||0}else if(k==='log'&&o.kind==='APDCL draw'&&o.bill==null){const c=card(o.card);if(c&&+c.stmt>0)o.bill=+c.stmt}S[k].push(o)}
+ if(id){const old=S[k].find(x=>x.id===id);if(k==='log'&&old)adjOut(old.card,-outFx(old.kind,old.amt));Object.assign(old,o);if(k==='log')adjOut(o.card,outFx(o.kind,o.amt))}else{o.id=uid();if(k==='log'&&o.kind==='Bill paid'&&o.bill==null){const c=card(o.card);o.bill=c&&+c.stmt>0?+c.stmt:+o.amt||0}else if(k==='log'&&o.kind==='APDCL draw'&&o.bill==null){const c=card(o.card);if(c&&+c.stmt>0)o.bill=+c.stmt}S[k].push(o);if(k==='log')adjOut(o.card,outFx(o.kind,o.amt))}
  dg.close();save();if(again)edit(k,'',{card:o.card})}
 $('#fm').onsubmit=e=>{e.preventDefault();commit(false)};
 $('#more').onclick=()=>{if($('#fm').reportValidity())commit(true)};
 $('#cn').onclick=()=>$('#dg').close();
 $('#del').onclick=()=>{const dg=$('#dg'),k=dg.dataset.k,id=dg.dataset.id;
  if(!confirm('Delete this '+TT[k]+(k==='cards'?' and all its EMIs':'')+'?'))return;
- S[k]=S[k].filter(x=>x.id!==id);if(k==='cards')S.emis=S.emis.filter(e=>e.card!==id);dg.close();save()};
+ const it=S[k].find(x=>x.id===id);S[k]=S[k].filter(x=>x.id!==id);if(k==='cards')S.emis=S.emis.filter(e=>e.card!==id);if(k==='log'&&it)adjOut(it.card,-outFx(it.kind,it.amt));dg.close();save()};
 
 function snap(){const m=M(),ym=new Date().toISOString().slice(0,7);S.snaps=S.snaps.filter(s=>s.m!==ym);S.snaps.push({m:ym,d:m.debt,e:m.co});S.snaps.sort((a,b)=>a.m<b.m?-1:1);save()}
 document.addEventListener('click',ev=>{const t=ev.target.closest('[data-e],[data-add],[data-tab],[data-act]');if(!t)return;const d=t.dataset;
@@ -413,7 +417,7 @@ document.addEventListener('click',ev=>{const t=ev.target.closest('[data-e],[data
  else if(d.act&&d.act.slice(0,4)==='tgl:'){const id=d.act.slice(4);if(openCards.has(id))openCards.delete(id);else openCards.add(id);render()} else if(d.act&&d.act.slice(0,5)==='tglb:'){const i=+d.act.slice(5);if(openBuckets.has(i))openBuckets.delete(i);else openBuckets.add(i);render()} else if(d.act&&d.act.slice(0,6)==='scope:'){SCOPE=d.act.slice(6);render()}
  else if(d.act==='saveupd')save();
  else if(d.act==='resetupd'){try{S=Object.assign(D(),JSON.parse(localStorage.getItem(K)))}catch(e){}render()}
- else if(d.act&&d.act.slice(0,9)==='paidbill:'){const id=d.act.slice(9),c=card(id),ym2=new Date().toISOString().slice(0,7);if(c&&+c.stmt>0){const rem=+c.stmt-paidAmtM(id,ym2);if(rem>0){S.log.push({id:uid(),date:new Date().toISOString().slice(0,10),card:id,kind:'Bill paid',amt:rem,fee:0,mode:'',note:rem<+c.stmt?'Paid rest in full':'Paid in full',bill:+c.stmt});save()}}}
+ else if(d.act&&d.act.slice(0,9)==='paidbill:'){const id=d.act.slice(9),c=card(id),ym2=new Date().toISOString().slice(0,7);if(c&&+c.stmt>0){const rem=+c.stmt-paidAmtM(id,ym2);if(rem>0){S.log.push({id:uid(),date:new Date().toISOString().slice(0,10),card:id,kind:'Bill paid',amt:rem,fee:0,mode:'',note:rem<+c.stmt?'Paid rest in full':'Paid in full',bill:+c.stmt});adjOut(id,-rem);save()}}}
  else if(d.act&&d.act.slice(0,8)==='logdraw:'){const id=d.act.slice(8);edit('log','',{card:id,kind:'APDCL draw'})}
  else if(d.act&&d.act.slice(0,9)==='partbill:'){const id=d.act.slice(9),c=card(id),ym2=new Date().toISOString().slice(0,7),rem=c?+c.stmt-paidAmtM(id,ym2):0;if(c&&rem>0)edit('log','',{card:id,kind:'Bill paid',amt:rem,note:'Part payment'})}
  else if(d.act==='snap')snap();
