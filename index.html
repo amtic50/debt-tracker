@@ -116,6 +116,8 @@ const billOf=c=>Math.round(+(c&&c.stmt)||0);
 /* Bill-paid entries are stamped with the statement they settled (x.bill). Paid-toward-current-bill counts only entries stamped with the current stmt; unstamped legacy entries fall back to the old same-month rule. */
 const paidAmtM=(id,ym)=>{const c=card(id);return sum(S.log.filter(x=>x.card===id&&x.kind==='Bill paid'&&(x.bill!=null?Math.round(+x.bill||0)===billOf(c):(x.date||'').startsWith(ym))).map(x=>+x.amt||0))};
 function stampBills(){let ch=false;S.log.forEach(x=>{if(x.kind==='Bill paid'&&x.bill==null){const c=card(x.card);x.bill=(x.note||'').indexOf('Paid in full')===0?+x.amt||0:(c&&+c.stmt>0?+c.stmt:+x.amt||0);ch=true}});return ch}
+/* APDCL draws are stamped the same way (x.bill): the bill whose payment the draw drew back - the most recent Bill paid for that card on/before the draw date. Drawn-toward-current-bill counts only draws stamped with the current stmt; a draw with no payment before it (fresh limit) stays unstamped and counts against no bill. */
+function stampDraws(){let ch=false;S.log.forEach(x=>{if(x.kind==='APDCL draw'&&x.bill==null){const ps=S.log.filter(p=>p.card===x.card&&p.kind==='Bill paid'&&p.bill!=null&&(p.date||'')<=(x.date||'')).sort((a,b)=>(a.date||'')<(b.date||'')?-1:1);if(ps.length){x.bill=ps[ps.length-1].bill;ch=true}}});return ch}
 const hue=s=>{let h=0;for(const ch of String(s))h=(h*31+ch.charCodeAt(0))%360;return'hsl('+h+' 42% 34%)'};
 const BANKC={SBI:'#2563eb',BOBCARD:'#ea580c',ICICI:'#f97316',HDFC:'#0e7490',Axis:'#9d174d',PNB:'#a16207'};
 const bankC=b=>BANKC[b]||hue(b);
@@ -216,7 +218,7 @@ function vLog(){const m=M(),ym=new Date().toISOString().slice(0,7);
  const pm=m0===1?(y0-1)+'-12':y0+'-'+String(m0-1).padStart(2,'0');
  const pmLab=MN[(m0===1?12:m0-1)-1]+' '+(m0===1?y0-1:y0);
  const bills=S.cards.filter(c=>+c.stmt>0||paid(c.id)).map(c=>{const pa=paidAmt(c.id);return{c,d:c.due?dl(c.due):99,paid:paid(c.id),pa,full:+c.stmt>0&&Math.round(pa)>=Math.round(+c.stmt)}}).sort((a,b)=>a.d-b.d);
- const draws=id=>S.log.filter(x=>x.card===id&&x.kind!=='Bill paid'&&(x.date||'').startsWith(ym));
+ const draws=id=>{const b=billOf(card(id));return S.log.filter(x=>x.card===id&&x.kind!=='Bill paid'&&x.bill!=null&&Math.round(+x.bill||0)===b)};
  const drawsIn=(id,mo)=>sum(S.log.filter(x=>x.card===id&&x.kind!=='Bill paid'&&(x.date||'').startsWith(mo)).map(x=>+x.amt||0));
  const grows=S.cards.map(c=>({c,t:drawsIn(c.id,ym),p:drawsIn(c.id,pm)})).filter(g=>g.t>0||g.p>0).sort((a,b)=>b.t-a.t);
  const tt=sum(grows.map(g=>g.t)),tp=sum(grows.map(g=>g.p));
@@ -264,7 +266,7 @@ function edit(k,id,pre){if(k==='emis'&&!S.cards.length){alert('Add a card first,
  $('#del').hidden=!id;$('#more').hidden=!!id||k==='cards'||k==='loans';dg.showModal()}
 function commit(again){const dg=$('#dg'),k=dg.dataset.k,id=dg.dataset.id,fd=new FormData($('#fm')),o={};
  SC[k].forEach(f=>{let v=fd.get(f[0]);if(f[2]==='m'||f[2]==='d')v=v===''||v==null?'':+v;o[f[0]]=v});
- if(id)Object.assign(S[k].find(x=>x.id===id),o);else{o.id=uid();if(k==='log'&&o.kind==='Bill paid'&&o.bill==null){const c=card(o.card);o.bill=c&&+c.stmt>0?+c.stmt:+o.amt||0}S[k].push(o)}
+ if(id)Object.assign(S[k].find(x=>x.id===id),o);else{o.id=uid();if(k==='log'&&o.kind==='Bill paid'&&o.bill==null){const c=card(o.card);o.bill=c&&+c.stmt>0?+c.stmt:+o.amt||0}else if(k==='log'&&o.kind==='APDCL draw'&&o.bill==null){const c=card(o.card);if(c&&+c.stmt>0)o.bill=+c.stmt}S[k].push(o)}
  dg.close();save();if(again)edit(k,'',{card:o.card})}
 $('#fm').onsubmit=e=>{e.preventDefault();commit(false)};
 $('#more').onclick=()=>{if($('#fm').reportValidity())commit(true)};
@@ -290,7 +292,7 @@ document.addEventListener('click',ev=>{const t=ev.target.closest('[data-e],[data
 document.addEventListener('change',ev=>{const t=ev.target;if(t.dataset&&t.dataset.set){S.set[t.dataset.set]=+t.value||0;save()}});
 document.addEventListener('input',ev=>{const t=ev.target;if(t.dataset&&t.dataset.upd){const p=t.dataset.upd.split('|');const o=S[p[0]].find(x=>x.id===p[1]);if(o)o[p[2]]=t.value===''?'':+t.value}});
 $('#imp').onchange=ev=>{const f=ev.target.files[0];if(!f)return;const r=new FileReader();
- r.onload=()=>{try{S=Object.assign(D(),JSON.parse(r.result));stampBills();save()}catch(e){alert('That file is not a valid backup.')}};r.readAsText(f)};
+ r.onload=()=>{try{S=Object.assign(D(),JSON.parse(r.result));stampBills();stampDraws();save()}catch(e){alert('That file is not a valid backup.')}};r.readAsText(f)};
 
 /* Firebase sync: Google sign-in, one Firestore doc per user, newest write wins */
 function st(t){$('#sync').textContent=t}
@@ -299,9 +301,9 @@ function initFB(){if(!FB||!window.firebase){st('Local only');return}
  firebase.auth().onAuthStateChanged(u=>{user=u;if(!u){ref=null;st('Sign in to sync');return}
   ref=firebase.firestore().doc('debtTracker/'+u.uid);st('Syncing\u2026');
   ref.onSnapshot(s=>{const d=s.data();
-   if(d&&d.t>S.t){S=Object.assign(D(),d.s);if(stampBills()){save()}else{try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}render()}}
+   if(d&&d.t>S.t){S=Object.assign(D(),d.s);const _sb=stampBills(),_sd=stampDraws();if(_sb||_sd){save()}else{try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}render()}}
    else if(!d||d.t<S.t)ref.set({s:JSON.parse(JSON.stringify(S)),t:S.t});
    st('Synced')},()=>st('Sync blocked'))})}
 $('#sync').onclick=()=>{if(FB&&window.firebase&&!user)firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>alert(e.message))};
-if(stampBills())save();render();initFB();
+const _sb0=stampBills(),_sd0=stampDraws();if(_sb0||_sd0)save();render();initFB();
 </script></body></html>
