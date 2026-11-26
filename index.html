@@ -2,6 +2,11 @@
 <html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#2d5be3">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Debt Tracker">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Debt Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -40,6 +45,7 @@ header{position:fixed;top:0;left:0;right:0;z-index:5;display:flex;justify-conten
 .logo svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 header b{font-size:1.08rem;font-weight:700;letter-spacing:-.015em}
 #sync{display:flex;align-items:center;gap:7px;font-size:.76rem;font-weight:600;border:0;background:var(--s);color:var(--mut);border-radius:99px;padding:7px 13px 7px 11px;min-height:0;box-shadow:0 0 0 1px var(--ln)}
+#install{display:flex;align-items:center;gap:6px;font-size:.76rem;font-weight:700;border:0;background:var(--ac);color:var(--on-ac);border-radius:99px;padding:7px 13px;min-height:0;box-shadow:var(--sh);cursor:pointer}
 #sync::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--mut)}
 #sync[data-s="Synced"]::before{background:var(--ok)}
 #sync[data-s^="Syncing"]::before{background:var(--warn)}
@@ -183,9 +189,31 @@ dialog h2{margin:0 0 16px;font-size:1.15rem}
  dialog[open]{animation:sheet .24s cubic-bezier(.2,.8,.2,1)}
  @keyframes sheet{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
 }
+/* desktop version: wide layout, left sidebar nav */
+@media(min-width:900px){
+ body{font-size:16px;padding:84px 0 48px}
+ header{padding:12px max(28px,calc((100% - 1400px)/2 + 252px))}
+ main{max-width:1400px;margin:0 auto;padding:0 28px 0 252px}
+ nav{left:0;top:0;bottom:0;width:224px;flex-direction:column;gap:4px;padding:76px 12px 16px;border-radius:0;background:var(--s);box-shadow:none;border-right:1px solid var(--ln);transform:none}
+ nav::before{content:"Menu";font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);padding:0 14px 10px}
+ nav button{flex-direction:row;justify-content:flex-start;gap:12px;min-height:48px;padding:12px 14px;border-radius:14px;font-size:.92rem}
+ nav button svg{width:20px;height:20px}
+ #add{bottom:24px;right:28px}
+ .g2{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+ .tab-over{display:grid;grid-template-columns:220px 1fr;gap:16px 20px;align-items:start}
+ .tab-over>.scope,.tab-over>.hero,.tab-over>.g2{grid-column:1/-1}
+ .tab-over>h2{grid-column:1;margin:16px 0 0}
+ .tab-over>.pn{grid-column:2;margin-bottom:0}
+ .tab-cards,.tab-loans,.tab-log{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+ .tab-cards>.cd,.tab-loans>.cd,.tab-log>.cd{margin-bottom:0}
+ .tab-loans>.g2,.tab-log>.g2,.tab-log>h2,.tab-log>.pn{grid-column:1/-1}
+ .tab-log>h2{margin:20px 0 0}
+ .tab-upd .pn{max-width:920px}
+ .tab-upd .urow{grid-template-columns:1.6fr repeat(3,1fr)}
+}
 </style></head>
 <body>
-<header><div class="brand"><span class="logo"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h6"/></svg></span><b>Debt Tracker</b></div><button id="sync" type="button" data-s="Starting">Starting…</button></header>
+<header><div class="brand"><span class="logo"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h6"/></svg></span><b>Debt Tracker</b></div><button id="sync" type="button" data-s="Starting">Starting…</button><button id="install" type="button" hidden>Install app</button></header>
 <main id="v"></main>
 <button id="add" data-add="log"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>Add entry</span></button>
 <nav id="nav"></nav>
@@ -343,6 +371,7 @@ const PLUS='<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
 const ICO={over:'<svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="8" rx="2"/><rect x="13.5" y="3.5" width="7" height="5" rx="2"/><rect x="13.5" y="11.5" width="7" height="9" rx="2"/><rect x="3.5" y="14.5" width="7" height="6" rx="2"/></svg>',cards:'<svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M2.5 10h19M6.5 15h4"/></svg>',loans:'<svg viewBox="0 0 24 24"><path d="M3 10l9-6 9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18"/></svg>',log:'<svg viewBox="0 0 24 24"><path d="M20 8a8 8 0 0 0-14.3-3M4 4v4h4"/><path d="M4 16a8 8 0 0 0 14.3 3M20 20v-4h-4"/></svg>',upd:'<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3zM14 8l3 3"/></svg>'};
 function render(){$('#nav').innerHTML=TABS.map(t=>'<button data-tab="'+t[0]+'" class="'+(T===t[0]?'on':'')+'">'+(ICO[t[0]]||'')+'<span>'+t[1]+'</span></button>').join('');
  $('#v').innerHTML=TABS.find(t=>t[0]===T)[2]();
+ $('#v').className='tab-'+T;
  const a=$('#add');a.hidden=T==='over'||T==='upd';a.innerHTML=PLUS+'<span>Add '+(ADD[T]||'')+'</span>';a.dataset.add=T}
 
 /* Forms: [key,label,type,hint/options,required] */
@@ -407,5 +436,13 @@ function initFB(){if(!LIVE){st('Local copy — sync off');return}if(!FB||!window
    st('Synced')},()=>st('Sync blocked'))})}
 $('#sync').onclick=()=>{if(LIVE&&FB&&window.firebase&&!user)firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>alert(e.message))};
 const _sb0=stampBills(),_sd0=stampDraws();if(_sb0||_sd0)save();render();initFB();
+/* PWA: install as app + offline shell (same pattern as the PT timer) */
+if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(function(){})}
+let _deferredPrompt=null;
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();_deferredPrompt=e;const b=document.getElementById('install');if(b)b.hidden=false});
+document.getElementById('install').addEventListener('click',function(){
+ if(_deferredPrompt){_deferredPrompt.prompt();_deferredPrompt.userChoice.then(function(){_deferredPrompt=null;document.getElementById('install').hidden=true})}
+ else{alert('To install Debt Tracker:\nAndroid \u2014 tap the \u22ee menu, then "Install app" (or "Add to Home screen").\niPhone \u2014 tap Share, then "Add to Home Screen".')}
+});
 </script>
 </body></html>
