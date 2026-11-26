@@ -242,6 +242,10 @@ const card=id=>S.cards.find(c=>c.id===id);
 const billOf=c=>Math.round(+(c&&c.stmt)||0);
 /* Bill-paid entries are stamped with the statement they settled (x.bill). Paid-toward-current-bill counts only entries stamped with the current stmt; unstamped legacy entries fall back to the old same-month rule. */
 const paidAmtM=(id,ym)=>{const c=card(id);return sum(S.log.filter(x=>x.card===id&&x.kind==='Bill paid'&&(x.bill!=null?Math.round(+x.bill||0)===billOf(c):(x.date||'').startsWith(ym))).map(x=>+x.amt||0))};
+/* Log entries move the card outstanding (Cards tab): a Bill paid lowers it by the payment, an APDCL draw raises it by the draw. Editing or deleting reverses the change. */
+function adjOut(cardId,delta){const c=card(cardId);if(c)c.out=Math.max(0,Math.round(((+c.out||0)+delta)*100)/100)}
+const outFx=(kind,amt)=>kind==='Bill paid'?-(+amt||0):kind==='APDCL draw'?+(+amt||0):0;
+const remBill=id=>{const c=card(id);return c?Math.max(0,Math.round(((+c.stmt||0)-paidAmtM(id,new Date().toISOString().slice(0,7)))*100)/100):0};
 function stampBills(){let ch=false;S.log.forEach(x=>{if(x.kind==='Bill paid'&&x.bill==null){const c=card(x.card);x.bill=(x.note||'').indexOf('Paid in full')===0?+x.amt||0:(c&&+c.stmt>0?+c.stmt:+x.amt||0);ch=true}});return ch}
 /* APDCL draws are stamped the same way (x.bill): the bill whose payment the draw drew back - the most recent Bill paid for that card on/before the draw date. Drawn-toward-current-bill counts only draws stamped with the current stmt; a draw with no payment before it (fresh limit) stays unstamped and counts against no bill. */
 function stampDraws(){let ch=false;S.log.forEach(x=>{if(x.kind==='APDCL draw'&&x.bill==null){const ps=S.log.filter(p=>p.card===x.card&&p.kind==='Bill paid'&&p.bill!=null&&(p.date||'')<=(x.date||'')).sort((a,b)=>(a.date||'')<(b.date||'')?-1:1);if(ps.length){x.bill=ps[ps.length-1].bill;ch=true}}});return ch}
@@ -346,10 +350,6 @@ function vLog(){const m=M(),ym=new Date().toISOString().slice(0,7);
  const pmLab=MN[(m0===1?12:m0-1)-1]+' '+(m0===1?y0-1:y0);
  const bills=S.cards.filter(c=>+c.stmt>0||paid(c.id)).map(c=>{const pa=paidAmt(c.id);return{c,d:c.due?dl(c.due):99,paid:paid(c.id),pa,full:+c.stmt>0&&Math.round(pa)>=Math.round(+c.stmt)}}).sort((a,b)=>a.d-b.d);
  const draws=id=>{const b=billOf(card(id));return S.log.filter(x=>x.card===id&&x.kind!=='Bill paid'&&x.bill!=null&&Math.round(+x.bill||0)===b)};
-/* Log entries move the card outstanding (Cards tab): a Bill paid lowers it by the payment, an APDCL draw raises it by the draw. Editing or deleting reverses the change. */
-function adjOut(cardId,delta){const c=card(cardId);if(c)c.out=Math.max(0,Math.round(((+c.out||0)+delta)*100)/100)}
-const outFx=(kind,amt)=>kind==='Bill paid'?-(+amt||0):kind==='APDCL draw'?+(+amt||0):0;
-const remBill=id=>{const c=card(id);return c?Math.max(0,Math.round(((+c.stmt||0)-paidAmtM(id,new Date().toISOString().slice(0,7)))*100)/100):0};
  const drawsIn=(id,mo)=>sum(S.log.filter(x=>x.card===id&&x.kind!=='Bill paid'&&(x.date||'').startsWith(mo)).map(x=>+x.amt||0));
  const grows=S.cards.map(c=>({c,t:drawsIn(c.id,ym),p:drawsIn(c.id,pm)})).filter(g=>g.t>0||g.p>0).sort((a,b)=>b.t-a.t);
  const tt=sum(grows.map(g=>g.t)),tp=sum(grows.map(g=>g.p));
