@@ -201,7 +201,7 @@ const FB={apiKey:"AIzaSyBYMAE7gGu1O7uN21SmBKx-i4v6FL-O1Xw",authDomain:"amit-fina
 const K='debt-tracker-v2';
 const D=()=>({cards:[],emis:[],loans:[],log:[],snaps:[],set:{salary:0,fore:3},t:0});
 let S;try{S=Object.assign(D(),JSON.parse(localStorage.getItem(K)))}catch(e){S=D()}
-let T='over',ref=null,user=null;
+let T='over',ref=null,user=null;const LIVE=location.hostname==='amtic50.github.io';/* Sync only on the live site. A local copy (file://, localhost, any other host) must never push to Firestore, or its stale data overwrites the live tracker. */
 let SCOPE='mine';
 const openCards=new Set();
 const openBuckets=new Set();
@@ -397,7 +397,7 @@ $('#imp').onchange=ev=>{const f=ev.target.files[0];if(!f)return;const r=new File
 
 /* Firebase sync: Google sign-in, one Firestore doc per user, newest write wins */
 function st(t){const b=$('#sync');b.textContent=t;b.dataset.s=t}
-function initFB(){if(!FB||!window.firebase){st('Local only');return}
+function initFB(){if(!LIVE){st('Local copy — sync off');return}if(!FB||!window.firebase){st('Local only');return}
  firebase.initializeApp(FB);
  firebase.auth().onAuthStateChanged(u=>{user=u;if(!u){ref=null;st('Sign in to sync');return}
   ref=firebase.firestore().doc('debtTracker/'+u.uid);st('Syncing\u2026');
@@ -405,7 +405,7 @@ function initFB(){if(!FB||!window.firebase){st('Local only');return}
    if(d&&d.t>S.t){S=Object.assign(D(),d.s);const _sb=stampBills(),_sd=stampDraws();if(_sb||_sd){save()}else{try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}render()}}
    else if(!d||d.t<S.t)ref.set({s:JSON.parse(JSON.stringify(S)),t:S.t});
    st('Synced')},()=>st('Sync blocked'))})}
-$('#sync').onclick=()=>{if(FB&&window.firebase&&!user)firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>alert(e.message))};
+$('#sync').onclick=()=>{if(LIVE&&FB&&window.firebase&&!user)firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>alert(e.message))};
 const _sb0=stampBills(),_sd0=stampDraws();if(_sb0||_sd0)save();render();initFB();
 </script>
 </body></html>
