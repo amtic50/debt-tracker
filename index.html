@@ -204,9 +204,9 @@ dialog h2{margin:0 0 16px;font-size:1.15rem}
  .tab-over>.scope,.tab-over>.hero,.tab-over>.g2{grid-column:1/-1}
  .tab-over>h2{grid-column:1;margin:16px 0 0}
  .tab-over>.pn{grid-column:2;margin-bottom:0}
- .tab-cards,.tab-loans,.tab-log,.tab-buf{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+ .tab-cards,.tab-loans,.tab-log,.tab-buf,.tab-mon{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
  .tab-cards>.cd,.tab-loans>.cd,.tab-log>.cd,.tab-buf>.cd{margin-bottom:0}
- .tab-loans>.g2,.tab-log>.g2,.tab-log>h2,.tab-log>.pn,.tab-buf>.g2,.tab-buf>h2,.tab-buf>.pn,.tab-buf>.act{grid-column:1/-1}
+ .tab-loans>.g2,.tab-log>.g2,.tab-log>h2,.tab-log>.pn,.tab-buf>.g2,.tab-buf>h2,.tab-buf>.pn,.tab-buf>.act,.tab-mon>.g2,.tab-mon>h2,.tab-mon>.pn,.tab-mon>.act{grid-column:1/-1}
  .tab-log>h2,.tab-buf>h2{margin:20px 0 0}
  .tab-upd .pn{max-width:920px}
  .tab-upd .urow{grid-template-columns:1.6fr repeat(3,1fr)}
@@ -234,6 +234,7 @@ let SCOPE='mine';
 const openCards=new Set();
 const openBuckets=new Set();
 let bufSetOpen=false;
+let monYM=new Date().toISOString().slice(0,7);
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const inr=n=>'\u20B9'+Math.round(n||0).toLocaleString('en-IN');
@@ -245,21 +246,46 @@ const billOf=c=>Math.round(+(c&&c.stmt)||0);
 const paidAmtM=(id,ym)=>{const c=card(id);return sum(S.log.filter(x=>x.card===id&&x.kind==='Bill paid'&&(x.bill!=null?Math.round(+x.bill||0)===billOf(c):(x.date||'').startsWith(ym))).map(x=>+x.amt||0))};
 /* Log entries move the card outstanding (Cards tab): a Bill paid lowers it by the payment, an APDCL draw raises it by the draw. Editing or deleting reverses the change. */
 function adjOut(cardId,delta){const c=card(cardId);if(c)c.out=Math.max(0,Math.round(((+c.out||0)+delta)*100)/100)}
-const outFx=(kind,amt)=>kind==='Bill paid'?-(+amt||0):kind==='APDCL draw'?+(+amt||0):0;
+const outFx=(kind,amt)=>kind==='Bill paid'?-(+amt||0):(kind==='APDCL draw'||kind==='CC extra')?+(+amt||0):0;
 const remBill=id=>{const c=card(id);return c?Math.max(0,Math.round(((+c.stmt||0)-paidAmtM(id,new Date().toISOString().slice(0,7)))*100)/100):0};
 /* Buffer cash: two pots (Bank/UPI and physical Cash). Starting balances are typed in by hand (S.buf.bank0/cash0). Bill paid comes out of the buffer (default Bank); Cash in and Collect go in; Other spend and Lend go out. Transfer moves money between the pots (total unchanged). APDCL draws do not move the buffer — only the cash collected for them does (a separate Cash in). Entries before S.buf.start do not move the buffer: the starting balances already include everything up to that date. */
 const potOf=x=>x.pot==='Cash'?'Cash':'Bank';
 const bufCounts=x=>!S.buf||!S.buf.start||(x.date||'')>=S.buf.start;
 function bufBal(){let bank=+((S.buf&&S.buf.bank0)||0),cash=+((S.buf&&S.buf.cash0)||0);
  S.log.forEach(x=>{if(!bufCounts(x))return;const a=+x.amt||0,p=potOf(x);
-  if(x.kind==='Cash in'||x.kind==='Collect'||x.kind==='Borrow'){if(p==='Bank')bank+=a;else cash+=a}
-  else if(x.kind==='Bill paid'||x.kind==='Other spend'||x.kind==='Lend'||x.kind==='Repay'){if(p==='Bank')bank-=a;else cash-=a}
+  if(x.kind==='Cash in'||x.kind==='Collect'||x.kind==='Borrow'||x.kind==='Salary'||x.kind==='CC extra'||x.kind==='Loan taken'){if(p==='Bank')bank+=a;else cash+=a}
+  else if(x.kind==='Bill paid'||x.kind==='Other spend'||x.kind==='Lend'||x.kind==='Repay'||x.kind==='Expense'||x.kind==='Loan EMI'){if(p==='Bank')bank-=a;else cash-=a}
   else if(x.kind==='Transfer'){if(p==='Bank'){bank-=a;cash+=a}else{cash-=a;bank+=a}}});
  return{bank,cash,total:bank+cash}}
 function bufPeople(){const m={};
  (S.buf&&S.buf.people||[]).forEach(p=>{if(p.name)m[p.name]={id:p.id,name:p.name,owed:+p.owed||0}});
  S.log.forEach(x=>{if((x.kind==='Lend'||x.kind==='Collect')&&x.person){const n=String(x.person).trim();if(!n)return;if(!m[n])m[n]={id:null,name:n,owed:0};m[n].owed+=x.kind==='Lend'?+x.amt||0:-(+x.amt||0)}});
  return Object.values(m).sort((a,b)=>b.owed-a.owed)}
+/* Monthly buffer summary: opening / in / out / closing for a YYYY-MM month. In kinds add to the buffer, out kinds take from it, Transfer only moves between pots. */
+const MON_IN=['Salary','Cash in','CC extra','Loan taken','Collect','Borrow'];
+const MON_OUT=['Bill paid','Expense','Other spend','Lend','Loan EMI','Repay'];
+function bufMonth(ym){
+ const ms=ym+'-01', me=ym+'-32';
+ const inn={}, outt={}; MON_IN.forEach(k=>inn[k]=0); MON_OUT.forEach(k=>outt[k]=0);
+ let ob=+(S.buf&&S.buf.bank0||0), oc=+(S.buf&&S.buf.cash0||0), mb=0, mc=0;
+ S.log.forEach(x=>{
+  if(!bufCounts(x))return;
+  const d=x.date||'', a=+x.amt||0, p=potOf(x);
+  let db=0, dc=0;
+  if(MON_IN.indexOf(x.kind)>=0){if(p==='Bank')db=a;else dc=a}
+  else if(MON_OUT.indexOf(x.kind)>=0){if(p==='Bank')db=-a;else dc=-a}
+  else if(x.kind==='Transfer'){if(p==='Bank'){db=-a;dc=a}else{dc=-a;db=a}}
+  else return;
+  if(d<ms){ob+=db;oc+=dc}
+  else if(d>=ms&&d<me){
+   if(MON_IN.indexOf(x.kind)>=0)inn[x.kind]+=a;
+   if(MON_OUT.indexOf(x.kind)>=0)outt[x.kind]+=a;
+   mb+=db; mc+=dc;
+  }
+ });
+ const inT=MON_IN.reduce((s,k)=>s+inn[k],0), outT=MON_OUT.reduce((s,k)=>s+outt[k],0);
+ return{open:ob+oc, close:ob+mb+oc+mc, inT, outT, net:inT-outT, inn, outt};
+}
 function logLabel(x){const a=inr(x.amt);
  if(x.kind==='Bill paid')return a+' bill paid — '+cname(card(x.card));
  if(x.kind==='APDCL draw')return a+' APDCL draw'+(x.card?' — '+cname(card(x.card)):'');
@@ -267,6 +293,11 @@ function logLabel(x){const a=inr(x.amt);
  if(x.kind==='Other spend')return a+' other spend · '+potOf(x);
  if(x.kind==='Lend')return a+' lent — '+esc(x.person||'');
  if(x.kind==='Collect')return a+' collected — '+esc(x.person||'');
+ if(x.kind==='Salary')return a+' salary · '+potOf(x);
+ if(x.kind==='CC extra')return a+' CC extra'+(x.card?' — '+cname(card(x.card)):'')+' · '+potOf(x);
+ if(x.kind==='Loan taken')return a+' loan taken · '+potOf(x);
+ if(x.kind==='Expense')return a+' expense'+(x.cat?' — '+esc(x.cat):'')+' · '+potOf(x);
+ if(x.kind==='Loan EMI')return a+' loan EMI · '+potOf(x);
  if(x.kind==='Transfer')return a+' transfer '+(potOf(x)==='Bank'?'Bank → Cash':'Cash → Bank');
  if(x.kind==='Borrow')return a+' borrow — '+esc(x.person||'');
  if(x.kind==='Repay')return a+' repay — '+esc(x.person||'');
@@ -403,8 +434,25 @@ function vBuf(){const b=bufBal(),ym=new Date().toISOString().slice(0,7);
  h+='<h2>People owe me</h2><div class="pn">'+(ppl.length?ppl.map(p=>'<div class="row"><span>'+esc(p.name)+'<br><small>'+inr(p.owed)+' owed to you</small></span><span><button data-act="bufcollect:'+esc(p.name)+'">Collect</button> <button data-act="buflend:'+esc(p.name)+'">Lend</button>'+(p.id?' <button data-act="delperson:'+p.id+'">×</button>':'')+'</span></div>').join(''):'<small>No one listed yet. Add a person below.</small>')+
   '<label>Name<input id="bp-name" type="text" placeholder="Zakir, Bittu…"></label><label>Amount they owe<input id="bp-amt" type="number" step="any" inputmode="decimal" placeholder="0"></label><div class="act"><button data-act="addperson" class="pr">Add person</button></div></div>';
  h+='<div class="act"><button data-act="bufin">+ Cash in</button><button data-act="bufspend">+ Other spend</button><button data-act="buflend">+ Lend</button><button data-act="bufcollect">+ Collect</button></div>';
+ h+='<div class="act"><button data-act="bufsal">+ Salary</button><button data-act="bufccx">+ CC extra</button><button data-act="bufloan">+ Loan taken</button><button data-act="bufemi">+ Loan EMI</button></div>';
  h+='<h2>Move between pots</h2><div class="pn"><label>Amount<input id="tr-amt" type="number" step="any" inputmode="decimal" placeholder="0"></label><label>From<select id="tr-from"><option>Bank</option><option>Cash</option></select></label><small>Moves money from one pot to the other. Total buffer stays the same. Example: someone pays you UPI and you give them cash — move from Cash to Bank.</small><div class="act"><button data-act="transfer" class="pr">Move</button></div></div>';
  h+='<h2>Buffer movements</h2>'+(moves.length?moves.map(x=>'<article class="cd" data-e="log:'+x.id+'"><div class="hd"><div><b>'+logLabel(x)+'</b><small>'+esc(x.date||'')+(x.note?' · '+esc(x.note):'')+'</small></div><span class="am">'+potOf(x)+'</span></div></article>').join(''):empty('No buffer entries yet','Log cash in, other spending, lending, collections and transfers here.'));
+ return h}
+function vMon(){
+ const ym=monYM, m=bufMonth(ym);
+ const exs=S.log.filter(x=>x.kind==='Expense'&&bufCounts(x)&&(x.date||'').startsWith(ym)).slice().sort((a,b)=>(b.date||'')<(a.date||'')?-1:1);
+ const cats=['Household','Fuel','Food','Personal','Other'];
+ const catT={}; cats.forEach(c=>catT[c]=0);
+ exs.forEach(x=>{const c=x.cat||'Other';catT[c]=(catT[c]||0)+(+x.amt||0)});
+ const inRows=[['Salary',m.inn.Salary],['Cash in',m.inn['Cash in']],['CC extra (over rotation)',m.inn['CC extra']],['Loan taken',m.inn['Loan taken']],['Collected',m.inn.Collect]].filter(r=>r[1]>0);
+ const outRows=[['Bill paid',m.outt['Bill paid']],['Expenses',m.outt.Expense],['Other spend',m.outt['Other spend']],['Lent',m.outt.Lend],['Loan EMI',m.outt['Loan EMI']]].filter(r=>r[1]>0);
+ let h='<div class="pn"><label>Month<input type="month" data-mon="ym" value="'+ym+'"></label></div>';
+ h+='<div class="g2"><div class="k"><small>Opening buffer</small><b>'+inr(m.open)+'</b></div><div class="k"><small>Closing buffer</small><b>'+inr(m.close)+'</b></div><div class="k"><small>Money in</small><b>+'+inr(m.inT)+'</b></div><div class="k"><small>Money out</small><b>−'+inr(m.outT)+'</b></div><div class="k"><small>Net this month</small><b>'+(m.net>=0?'+':'−')+inr(Math.abs(m.net))+'</b><small>'+(m.net>=0?'Buffer went up':'Buffer went down')+'</small></div></div>';
+ h+='<h2>Money in</h2><div class="pn">'+(inRows.length?inRows.map(r=>'<div class="row"><span>'+r[0]+'</span><span>+'+inr(r[1])+'</span></div>').join(''):'<small>No money in this month.</small>')+'</div>';
+ h+='<h2>Money out</h2><div class="pn">'+(outRows.length?outRows.map(r=>'<div class="row"><span>'+r[0]+'</span><span>−'+inr(r[1])+'</span></div>').join(''):'<small>No money out this month.</small>')+'</div>';
+ h+='<h2>Add an expense</h2><div class="pn"><label>Amount<input id="ex-amt" type="number" step="any" inputmode="decimal" placeholder="0"></label><label>Category<select id="ex-cat">'+cats.map(c=>'<option>'+c+'</option>').join('')+'</select></label><label>Date<input id="ex-date" type="date" value="'+new Date().toISOString().slice(0,10)+'"></label><label>Pot<select id="ex-pot"><option>Bank</option><option>Cash</option></select></label><label>What for<input id="ex-note" type="text" placeholder="Groceries, petrol…"></label><div class="act"><button data-act="addexpense" class="pr">Save expense</button></div></div>';
+ h+='<h2>Expenses by category</h2><div class="pn">'+cats.map(c=>'<div class="row"><span>'+c+'</span><span>'+inr(catT[c]||0)+'</span></div>').join('')+'<div class="row"><span><b>Total expenses</b></span><span><b>'+inr(m.outt.Expense)+'</b></span></div></div>';
+ h+='<h2>Expenses this month</h2>'+(exs.length?exs.map(x=>'<article class="cd" data-e="log:'+x.id+'"><div class="hd"><div><b>'+logLabel(x)+'</b><small>'+esc(x.date||'')+(x.note?' · '+esc(x.note):'')+'</small></div><span class="am">'+potOf(x)+'</span></div></article>').join(''):empty('No expenses this month','Use the form above to record one.'));
  return h}
 function vUpd(){
  const rows=S.cards.slice().sort((a,b)=>(+b.out||0)-(+a.out||0)).map(c=>'<div class="urow"><div><b>'+esc(c.bank+' '+(c.name||''))+'</b><small>••'+esc(c.last4||'')+'</small></div><input type="number" step="any" inputmode="decimal" data-upd="cards|'+c.id+'|out" value="'+(c.out||'')+'" aria-label="Outstanding"><input type="number" step="any" inputmode="decimal" data-upd="cards|'+c.id+'|stmt" value="'+(c.stmt||'')+'" aria-label="Statement bill"><input type="number" step="any" inputmode="decimal" data-upd="cards|'+c.id+'|min" value="'+(c.min||'')+'" aria-label="Minimum due"></div>').join('');
@@ -414,7 +462,7 @@ function vUpd(){
  '<h2>Loans</h2><div class="pn"><div class="urow uhead"><div>Loan</div><span>Outstanding</span><span>EMI / month</span><span></span></div>'+lr+'</div>'+
  '<div class="act"><button data-act="saveupd" class="pr">Save all</button><button data-act="resetupd">Discard changes</button></div>'}
 
-const TABS=[['over','Overview',vOver],['cards','Cards',vCards],['loans','Loans',vLoans],['log','Rotation',vLog],['buf','Buffer',vBuf],['upd','Update',vUpd]];
+const TABS=[['over','Overview',vOver],['cards','Cards',vCards],['loans','Loans',vLoans],['log','Rotation',vLog],['buf','Buffer',vBuf],['mon','Monthly',vMon],['upd','Update',vUpd]];
 const ADD={cards:'card',emis:'EMI',loans:'loan',log:'entry'};
 const PLUS='<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
 const ICO={over:'<svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="8" rx="2"/><rect x="13.5" y="3.5" width="7" height="5" rx="2"/><rect x="13.5" y="11.5" width="7" height="9" rx="2"/><rect x="3.5" y="14.5" width="7" height="6" rx="2"/></svg>',cards:'<svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M2.5 10h19M6.5 15h4"/></svg>',loans:'<svg viewBox="0 0 24 24"><path d="M3 10l9-6 9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18"/></svg>',log:'<svg viewBox="0 0 24 24"><path d="M20 8a8 8 0 0 0-14.3-3M4 4v4h4"/><path d="M4 16a8 8 0 0 0 14.3 3M20 20v-4h-4"/></svg>',buf:'<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="14" rx="3"/><path d="M3 10h18M16 15h2"/></svg>',upd:'<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3zM14 8l3 3"/></svg>'};
@@ -431,7 +479,7 @@ cards:[['bank','Bank','t','',1],['name','Card name','t'],['last4','Last 4 digits
 emis:[['card','On card','c'],['label','What it is','t','',1],['amt','Principal converted','m'],['rate','Interest % per year','m'],['ten','Tenure in months','m'],
  ['start','First instalment date','date'],['inst','Instalment amount','m','Leave blank to calculate it'],['fee','Processing fee paid','m']],
 loans:[['name','Lender or loan','t','',1],['out','Outstanding','m'],['emi','EMI per month','m'],['rate','Interest % per year','m'],['due','EMI day of month','d']],
-log:[['date','Date','date'],['card','Card','c'],['kind','Type','s',['APDCL draw','Bill paid','Cash in','Other spend','Lend','Collect','Transfer']],['pot','Buffer pot','s',['Bank','Cash']],['person','Person','t','For Lend / Collect — who owes you'],['amt','Amount','m'],['fee','Fees lost','m','Gateway or wallet fee, GST, late fee, interest'],['mode','Consumer paid by','s',['','Cash','Bank']],['note','Consumer / bill','t','Example: APDCL prepaid recharge, consumer name or number']]};
+log:[['date','Date','date'],['card','Card','c'],['kind','Type','s',['APDCL draw','Bill paid','Cash in','Other spend','Lend','Collect','Transfer','Salary','CC extra','Loan taken','Expense','Loan EMI']],['pot','Buffer pot','s',['Bank','Cash']],['person','Person','t','For Lend / Collect — who owes you'],['amt','Amount','m'],['fee','Fees lost','m','Gateway or wallet fee, GST, late fee, interest'],['mode','Consumer paid by','s',['','Cash','Bank']],['note','Consumer / bill','t','Example: APDCL prepaid recharge, consumer name or number']]};
 const TT={cards:'card',emis:'EMI',loans:'loan',log:'rotation entry'};
 function fld(f,v){const k=f[0],l=f[1],t=f[2],h=f[3],r=f[4]?' required':'';let i;
  if(t==='s')i='<select name="'+k+'">'+h.map(o=>'<option'+(o===v?' selected':'')+'>'+o+'</option>').join('')+'</select>';
@@ -471,6 +519,11 @@ document.addEventListener('click',ev=>{const t=ev.target.closest('[data-e],[data
  else if(d.act==='bufspend')edit('log','',{kind:'Other spend'});
  else if(d.act==='buflend')edit('log','',{kind:'Lend'});
  else if(d.act==='bufcollect')edit('log','',{kind:'Collect'});
+ else if(d.act==='bufsal')edit('log','',{kind:'Salary',pot:'Bank'});
+ else if(d.act==='bufccx')edit('log','',{kind:'CC extra'});
+ else if(d.act==='bufloan')edit('log','',{kind:'Loan taken'});
+ else if(d.act==='bufemi')edit('log','',{kind:'Loan EMI',pot:'Bank'});
+ else if(d.act==='addexpense'){const a=+((($('#ex-amt')||{}).value)||0),c=(($('#ex-cat')||{}).value||'Other'),dt=(($('#ex-date')||{}).value||new Date().toISOString().slice(0,10)),p=(($('#ex-pot')||{}).value||'Bank'),n=(($('#ex-note')||{}).value||'');if(!a||a<=0){alert('Type the expense amount first.');return}S.log.push({id:uid(),date:dt,card:'',kind:'Expense',amt:a,fee:0,mode:'',pot:p,person:'',note:n,cat:c});save()}
  else if(d.act==='tglbufset'){bufSetOpen=!bufSetOpen;render()}
  else if(d.act==='transfer'){const a=+((($('#tr-amt')||{}).value)||0),f=(($('#tr-from')||{}).value||'Bank');if(!a||a<=0){alert('Type the amount to move first.');return}S.log.push({id:uid(),date:new Date().toISOString().slice(0,10),card:'',kind:'Transfer',amt:a,fee:0,mode:'',pot:f,person:'',note:''});save()}
  else if(d.act==='addperson'){const n=($('#bp-name')||{}).value||'',a=+((($('#bp-amt')||{}).value)||0);if(!String(n).trim()){alert('Type the person\'s name first.');return}if(!S.buf)S.buf={bank0:0,cash0:0,start:null,people:[]};S.buf.people.push({id:uid(),name:String(n).trim(),owed:a});save()}
@@ -478,7 +531,7 @@ document.addEventListener('click',ev=>{const t=ev.target.closest('[data-e],[data
  else if(d.act==='snap')snap();
  else if(d.act==='imp')$('#imp').click();
  else if(d.act==='exp'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'}));a.download='debt-tracker-'+new Date().toISOString().slice(0,10)+'.json';a.click()}});
-document.addEventListener('change',ev=>{const t=ev.target;if(t.dataset&&t.dataset.set){S.set[t.dataset.set]=+t.value||0;save()}if(t.dataset&&t.dataset.buf){if(!S.buf)S.buf={bank0:0,cash0:0,start:null,people:[]};const f=t.dataset.buf;if(f==='start'){S.buf.start=t.value||null}else{S.buf[f]=+t.value||0;if(!S.buf.start)S.buf.start=new Date().toISOString().slice(0,10)}save()}});
+document.addEventListener('change',ev=>{const t=ev.target;if(t.dataset&&t.dataset.set){S.set[t.dataset.set]=+t.value||0;save()}if(t.dataset&&t.dataset.buf){if(!S.buf)S.buf={bank0:0,cash0:0,start:null,people:[]};const f=t.dataset.buf;if(f==='start'){S.buf.start=t.value||null}else{S.buf[f]=+t.value||0;if(!S.buf.start)S.buf.start=new Date().toISOString().slice(0,10)}save()}if(t.dataset&&t.dataset.mon){if(t.value)monYM=t.value;render()}});
 document.addEventListener('input',ev=>{const t=ev.target;if(t.dataset&&t.dataset.upd){const p=t.dataset.upd.split('|');const o=S[p[0]].find(x=>x.id===p[1]);if(o)o[p[2]]=t.value===''?'':+t.value}});
 $('#imp').onchange=ev=>{const f=ev.target.files[0];if(!f)return;const r=new FileReader();
  r.onload=()=>{try{S=Object.assign(D(),JSON.parse(r.result));stampBills();stampDraws();save()}catch(e){alert('That file is not a valid backup.')}};r.readAsText(f)};
