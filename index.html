@@ -263,7 +263,7 @@ function bufPeople(){const m={};
  (S.buf&&S.buf.people||[]).forEach(p=>{if(p.name&&(+p.owed||0)>=0)m[p.name]={id:p.id,name:p.name,owed:+p.owed||0}});
  S.log.forEach(x=>{if((x.kind==='Lend'||x.kind==='Collect')&&x.person){const n=String(x.person).trim();if(!n)return;if(!m[n])m[n]={id:null,name:n,owed:0};m[n].owed+=x.kind==='Lend'?+x.amt||0:-(+x.amt||0)}});
  return Object.values(m).sort((a,b)=>b.owed-a.owed)}
-/* "I owe": people Amit borrowed from. Starting amounts live in S.buf.owe; a negative starting amount in S.buf.people also means "I owe them" (e.g. Bharati -4869) and is picked up here as a positive owed. Borrow raises what is owed (and the buffer), Repay lowers it. */
+/* "I owe": people Amit borrowed from. Starting amounts live in S.buf.owe (kept for older entries); a negative starting amount in S.buf.people also means "I owe them" (e.g. Bharati -4869) and is picked up here as a positive owed. The "I owe" Add person form logs a Borrow entry (date today, pot Cash by default) so the buffer goes up — it does NOT create a starting entry. If the same person already has a starting entry for the same amount, the form converts it to the Borrow instead of double-counting. Borrow raises what is owed (and the buffer), Repay lowers it. */
 function bufOwe(){const m={};
  (S.buf&&S.buf.owe||[]).forEach(p=>{if(p.name){if(!m[p.name])m[p.name]={id:p.id,name:p.name,owed:0};m[p.name].owed+=+p.owed||0}});
  (S.buf&&S.buf.people||[]).forEach(p=>{if(p.name&&(+p.owed||0)<0){if(!m[p.name])m[p.name]={id:p.id,name:p.name,owed:0};m[p.name].owed+=-(+p.owed||0)}});
@@ -445,7 +445,7 @@ function vBuf(){const b=bufBal(),ym=new Date().toISOString().slice(0,7);
  h+='<h2>People owe me</h2><div class="pn">'+(ppl.length?ppl.map(p=>'<div class="row"><span>'+esc(p.name)+'<br><small>'+inr(p.owed)+' owed to you</small></span><span><button data-act="bufcollect:'+esc(p.name)+'">Collect</button> <button data-act="buflend:'+esc(p.name)+'">Lend</button> <button class="delx" data-act="delpplme:'+encodeURIComponent(p.name)+'" aria-label="Delete entry">×</button></span></div>').join(''):'<small>No one listed yet. Add a person below.</small>')+
   '<label>Name<input id="bp-name" type="text" placeholder="Zakir, Bittu…"></label><label>Amount they owe<input id="bp-amt" type="number" step="any" inputmode="decimal" placeholder="0"></label><div class="act"><button data-act="addperson" class="pr">Add person</button></div></div>';
  h+='<h2>I owe</h2><div class="pn">'+(owe.length?owe.map(p=>'<div class="row"><span>'+esc(p.name)+'<br><small>'+inr(p.owed)+' you owe</small></span><span><button data-act="bufborrow:'+esc(p.name)+'">Borrow</button> <button data-act="bufrepay:'+esc(p.name)+'">Repay</button> <button class="delx" data-act="delpplowe:'+encodeURIComponent(p.name)+'" aria-label="Delete entry">×</button></span></div>').join(''):'<small>No one you owe yet. Add a person below.</small>')+
-  '<label>Name<input id="bo-name" type="text" placeholder="Bharati…"></label><label>Amount you owe<input id="bo-amt" type="number" step="any" inputmode="decimal" placeholder="0"></label><div class="act"><button data-act="addowe" class="pr">Add person</button></div></div>';
+  '<label>Name<input id="bo-name" type="text" placeholder="Bharati…"></label><label>Amount you owe<input id="bo-amt" type="number" step="any" inputmode="decimal" placeholder="0"></label><label>Pot<select id="bo-pot"><option>Cash</option><option>Bank</option></select></label><small>Borrowing adds the money to your buffer. Cash if they gave you cash, Bank if it came by UPI.</small><div class="act"><button data-act="addowe" class="pr">Add person</button></div></div>';
  h+='<div class="act"><button data-act="bufin">+ Cash in</button><button data-act="bufspend">+ Other spend</button><button data-act="buflend">+ Lend</button><button data-act="bufcollect">+ Collect</button><button data-act="bufborrow">+ Borrow</button><button data-act="bufrepay">+ Repay</button></div>';
  h+='<div class="act"><button data-act="bufsal">+ Salary</button><button data-act="bufccx">+ CC extra</button><button data-act="bufloan">+ Loan taken</button><button data-act="bufemi">+ Loan EMI</button></div>';
  h+='<h2>Move between pots</h2><div class="pn"><label>Amount<input id="tr-amt" type="number" step="any" inputmode="decimal" placeholder="0"></label><label>From<select id="tr-from"><option>Bank</option><option>Cash</option></select></label><small>Moves money from one pot to the other. Total buffer stays the same. Example: someone pays you UPI and you give them cash — move from Cash to Bank.</small><div class="act"><button data-act="transfer" class="pr">Move</button></div></div>';
@@ -528,14 +528,14 @@ document.addEventListener('click',ev=>{const t=ev.target.closest('[data-e],[data
  else if(d.act&&d.act.slice(0,9)==='partbill:'){const id=d.act.slice(9),c=card(id),ym2=new Date().toISOString().slice(0,7),rem=c?+c.stmt-paidAmtM(id,ym2):0;if(c&&rem>0)edit('log','',{card:id,kind:'Bill paid',amt:rem,note:'Part payment',pot:'Bank'})}
  else if(d.act&&d.act.slice(0,8)==='buflend:'){edit('log','',{kind:'Lend',person:d.act.slice(8)})}
  else if(d.act&&d.act.slice(0,11)==='bufcollect:'){edit('log','',{kind:'Collect',person:d.act.slice(11)})}
- else if(d.act&&d.act.slice(0,10)==='bufborrow:'){edit('log','',{kind:'Borrow',person:d.act.slice(10)})}
- else if(d.act&&d.act.slice(0,9)==='bufrepay:'){edit('log','',{kind:'Repay',person:d.act.slice(9)})}
+ else if(d.act&&d.act.slice(0,10)==='bufborrow:'){edit('log','',{kind:'Borrow',pot:'Cash',person:d.act.slice(10)})}
+ else if(d.act&&d.act.slice(0,9)==='bufrepay:'){edit('log','',{kind:'Repay',pot:'Cash',person:d.act.slice(9)})}
  else if(d.act==='bufin')edit('log','',{kind:'Cash in'});
  else if(d.act==='bufspend')edit('log','',{kind:'Other spend'});
  else if(d.act==='buflend')edit('log','',{kind:'Lend'});
  else if(d.act==='bufcollect')edit('log','',{kind:'Collect'});
- else if(d.act==='bufborrow')edit('log','',{kind:'Borrow'});
- else if(d.act==='bufrepay')edit('log','',{kind:'Repay'});
+ else if(d.act==='bufborrow')edit('log','',{kind:'Borrow',pot:'Cash'});
+ else if(d.act==='bufrepay')edit('log','',{kind:'Repay',pot:'Cash'});
  else if(d.act==='bufsal')edit('log','',{kind:'Salary',pot:'Bank'});
  else if(d.act==='bufccx')edit('log','',{kind:'CC extra'});
  else if(d.act==='bufloan')edit('log','',{kind:'Loan taken'});
@@ -544,7 +544,7 @@ document.addEventListener('click',ev=>{const t=ev.target.closest('[data-e],[data
  else if(d.act==='tglbufset'){bufSetOpen=!bufSetOpen;render()}
  else if(d.act==='transfer'){const a=+((($('#tr-amt')||{}).value)||0),f=(($('#tr-from')||{}).value||'Bank');if(!a||a<=0){alert('Type the amount to move first.');return}S.log.push({id:uid(),date:new Date().toISOString().slice(0,10),card:'',kind:'Transfer',amt:a,fee:0,mode:'',pot:f,person:'',note:''});save()}
  else if(d.act==='addperson'){const n=($('#bp-name')||{}).value||'',a=+((($('#bp-amt')||{}).value)||0);if(!String(n).trim()){alert('Type the person\'s name first.');return}if(!S.buf)S.buf={bank0:0,cash0:0,start:null,people:[],owe:[]};if(!S.buf.people)S.buf.people=[];S.buf.people.push({id:uid(),name:String(n).trim(),owed:a});save()}
- else if(d.act==='addowe'){const n=($('#bo-name')||{}).value||'',a=+((($('#bo-amt')||{}).value)||0);if(!String(n).trim()){alert('Type the person\'s name first.');return}if(!S.buf)S.buf={bank0:0,cash0:0,start:null,people:[],owe:[]};if(!S.buf.owe)S.buf.owe=[];S.buf.owe.push({id:uid(),name:String(n).trim(),owed:a});save()}
+ else if(d.act==='addowe'){const nm=String((($('#bo-name')||{}).value)||'').trim();const a=+((($('#bo-amt')||{}).value)||0);const p=(($('#bo-pot')||{}).value||'Cash');if(!nm){alert("Type the person's name first.");return}if(!a||a<=0){alert('Type the amount first.');return}if(S.buf){const ow=(S.buf.owe||[]).find(x=>x.name===nm&&Math.abs((+x.owed||0)-a)<0.01);if(ow)S.buf.owe=S.buf.owe.filter(x=>x!==ow);const ng=(S.buf.people||[]).find(x=>x.name===nm&&(+x.owed||0)<0&&Math.abs(-(+x.owed||0)-a)<0.01);if(ng)S.buf.people=S.buf.people.filter(x=>x!==ng)}S.log.push({id:uid(),date:new Date().toISOString().slice(0,10),card:'',kind:'Borrow',amt:a,fee:0,mode:'',pot:p,person:nm,note:''});save()}
  else if(d.act&&d.act.slice(0,9)==='delpplme:'){const n=decodeURIComponent(d.act.slice(9));if(!confirm('Remove '+n+' and all their Lend / Collect entries?'))return;if(S.buf)S.buf.people=(S.buf.people||[]).filter(p=>p.name!==n);S.log=S.log.filter(x=>!((x.kind==='Lend'||x.kind==='Collect')&&x.person===n));save()}
  else if(d.act&&d.act.slice(0,10)==='delpplowe:'){const n=decodeURIComponent(d.act.slice(10));if(!confirm('Remove '+n+' and all their Borrow / Repay entries?'))return;if(S.buf){S.buf.owe=(S.buf.owe||[]).filter(p=>p.name!==n);S.buf.people=(S.buf.people||[]).filter(p=>!(p.name===n&&(+p.owed||0)<0))}S.log=S.log.filter(x=>!((x.kind==='Borrow'||x.kind==='Repay')&&x.person===n));save()}
  else if(d.act&&d.act.slice(0,7)==='dellog:'){const id=d.act.slice(7);const it=S.log.find(x=>x.id===id);if(!it)return;if(!confirm('Delete this entry?'))return;S.log=S.log.filter(x=>x.id!==id);if(it.card)adjOut(it.card,-outFx(it.kind,it.amt));save()}
