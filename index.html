@@ -233,6 +233,7 @@ let T='over',ref=null,user=null;const LIVE=location.hostname==='amtic50.github.i
 let SCOPE='mine';
 const openCards=new Set();
 const openBuckets=new Set();
+let bufSetOpen=false;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const inr=n=>'\u20B9'+Math.round(n||0).toLocaleString('en-IN');
@@ -246,23 +247,27 @@ const paidAmtM=(id,ym)=>{const c=card(id);return sum(S.log.filter(x=>x.card===id
 function adjOut(cardId,delta){const c=card(cardId);if(c)c.out=Math.max(0,Math.round(((+c.out||0)+delta)*100)/100)}
 const outFx=(kind,amt)=>kind==='Bill paid'?-(+amt||0):kind==='APDCL draw'?+(+amt||0):0;
 const remBill=id=>{const c=card(id);return c?Math.max(0,Math.round(((+c.stmt||0)-paidAmtM(id,new Date().toISOString().slice(0,7)))*100)/100):0};
-/* Buffer cash: two pots (Bank/UPI and physical Cash). Starting balances are typed in by hand (S.buf.bank0/cash0). Bill paid comes out of the buffer (default Bank); Cash in and Borrow go in; Other spend and Repay go out. APDCL draws do not move the buffer — only the cash collected for them does (a separate Cash in). Entries before S.buf.start do not move the buffer: the starting balances already include everything up to that date. */
+/* Buffer cash: two pots (Bank/UPI and physical Cash). Starting balances are typed in by hand (S.buf.bank0/cash0). Bill paid comes out of the buffer (default Bank); Cash in and Collect go in; Other spend and Lend go out. Transfer moves money between the pots (total unchanged). APDCL draws do not move the buffer — only the cash collected for them does (a separate Cash in). Entries before S.buf.start do not move the buffer: the starting balances already include everything up to that date. */
 const potOf=x=>x.pot==='Cash'?'Cash':'Bank';
 const bufCounts=x=>!S.buf||!S.buf.start||(x.date||'')>=S.buf.start;
 function bufBal(){let bank=+((S.buf&&S.buf.bank0)||0),cash=+((S.buf&&S.buf.cash0)||0);
  S.log.forEach(x=>{if(!bufCounts(x))return;const a=+x.amt||0,p=potOf(x);
-  if(x.kind==='Cash in'||x.kind==='Borrow'){if(p==='Bank')bank+=a;else cash+=a}
-  else if(x.kind==='Bill paid'||x.kind==='Other spend'||x.kind==='Repay'){if(p==='Bank')bank-=a;else cash-=a}});
+  if(x.kind==='Cash in'||x.kind==='Collect'||x.kind==='Borrow'){if(p==='Bank')bank+=a;else cash+=a}
+  else if(x.kind==='Bill paid'||x.kind==='Other spend'||x.kind==='Lend'||x.kind==='Repay'){if(p==='Bank')bank-=a;else cash-=a}
+  else if(x.kind==='Transfer'){if(p==='Bank'){bank-=a;cash+=a}else{cash-=a;bank+=a}}});
  return{bank,cash,total:bank+cash}}
 function bufPeople(){const m={};
  (S.buf&&S.buf.people||[]).forEach(p=>{if(p.name)m[p.name]={id:p.id,name:p.name,owed:+p.owed||0}});
- S.log.forEach(x=>{if((x.kind==='Borrow'||x.kind==='Repay')&&x.person){const n=String(x.person).trim();if(!n)return;if(!m[n])m[n]={id:null,name:n,owed:0};m[n].owed+=x.kind==='Borrow'?+x.amt||0:-(+x.amt||0)}});
+ S.log.forEach(x=>{if((x.kind==='Lend'||x.kind==='Collect')&&x.person){const n=String(x.person).trim();if(!n)return;if(!m[n])m[n]={id:null,name:n,owed:0};m[n].owed+=x.kind==='Lend'?+x.amt||0:-(+x.amt||0)}});
  return Object.values(m).sort((a,b)=>b.owed-a.owed)}
 function logLabel(x){const a=inr(x.amt);
  if(x.kind==='Bill paid')return a+' bill paid — '+cname(card(x.card));
  if(x.kind==='APDCL draw')return a+' APDCL draw'+(x.card?' — '+cname(card(x.card)):'');
  if(x.kind==='Cash in')return a+' cash in · '+potOf(x);
  if(x.kind==='Other spend')return a+' other spend · '+potOf(x);
+ if(x.kind==='Lend')return a+' lent — '+esc(x.person||'');
+ if(x.kind==='Collect')return a+' collected — '+esc(x.person||'');
+ if(x.kind==='Transfer')return a+' transfer '+(potOf(x)==='Bank'?'Bank → Cash':'Cash → Bank');
  if(x.kind==='Borrow')return a+' borrow — '+esc(x.person||'');
  if(x.kind==='Repay')return a+' repay — '+esc(x.person||'');
  return a+' '+esc(x.kind||'')}
@@ -388,17 +393,18 @@ function vBuf(){const b=bufBal(),ym=new Date().toISOString().slice(0,7);
  const startSet=(((S.buf&&S.buf.bank0)||0)+((S.buf&&S.buf.cash0)||0))>0;
  const low=startSet&&b.total<25000;
  let h='<div class="g2"><div class="k"><small>Bank (UPI)</small><b>'+inr(b.bank)+'</b></div><div class="k"><small>Cash in hand</small><b>'+inr(b.cash)+'</b></div><div class="k"><small>Total buffer</small><b>'+inr(b.total)+'</b><small>'+(startSet?(low?'Below your ₹25,000 floor':'Floor ₹25,000'):'Type starting balances above')+'</small></div></div>';
- h+='<h2>Starting buffer — type it in</h2><div class="pn"><label>Bank (UPI) starting<input type="number" step="any" inputmode="decimal" data-buf="bank0" value="'+((S.buf&&S.buf.bank0)||'')+'"></label><label>Cash starting<input type="number" step="any" inputmode="decimal" data-buf="cash0" value="'+((S.buf&&S.buf.cash0)||'')+'"></label><label>Buffer from<input type="date" data-buf="start" value="'+((S.buf&&S.buf.start)||'')+'"></label><small>Opening balances as of the Buffer from date. Entries before that date don\'t move the buffer — the starting balances already include them. Bill paid comes out of Bank unless you change it to Cash.</small></div>';
+ h+='<h2>Starting balances</h2><div class="pn"><div class="row"><span>'+(startSet?('Bank '+inr((S.buf&&S.buf.bank0)||0)+' · Cash '+inr((S.buf&&S.buf.cash0)||0)+((S.buf&&S.buf.start)?' · from '+esc(S.buf.start):'')):'Not set yet')+'</span><span><button data-act="tglbufset">'+(bufSetOpen?'Done':'Change')+'</button></span></div>'+(bufSetOpen?'<label>Bank (UPI) starting<input type="number" step="any" inputmode="decimal" data-buf="bank0" value="'+((S.buf&&S.buf.bank0)||'')+'"></label><label>Cash starting<input type="number" step="any" inputmode="decimal" data-buf="cash0" value="'+((S.buf&&S.buf.cash0)||'')+'"></label><label>Buffer from<input type="date" data-buf="start" value="'+((S.buf&&S.buf.start)||'')+'"></label><small>Opening balances as of the Buffer from date. Entries before that date don\'t move the buffer — the starting balances already include them. Bill paid comes out of Bank unless you change it to Cash.</small>':'')+'</div>';
  h+='<h2>This month</h2><div class="pn">'+
   '<div class="row"><span>Cash in</span><span>+'+inr(flow('Cash in'))+'</span></div>'+
   '<div class="row"><span>Bill paid (from Rotation)</span><span>−'+inr(flow('Bill paid'))+'</span></div>'+
   '<div class="row"><span>Other spend</span><span>−'+inr(flow('Other spend'))+'</span></div>'+
-  '<div class="row"><span>Borrowed</span><span>+'+inr(flow('Borrow'))+'</span></div>'+
-  '<div class="row"><span>Repaid</span><span>−'+inr(flow('Repay'))+'</span></div></div>';
- h+='<h2>People I owe</h2><div class="pn">'+(ppl.length?ppl.map(p=>'<div class="row"><span>'+esc(p.name)+'<br><small>'+inr(p.owed)+' owed</small></span><span><button data-act="bufrepay:'+esc(p.name)+'">Repay</button> <button data-act="bufborrow:'+esc(p.name)+'">Borrow</button>'+(p.id?' <button data-act="delperson:'+p.id+'">×</button>':'')+'</span></div>').join(''):'<small>No one listed yet. Add a person below.</small>')+
-  '<label>Name<input id="bp-name" type="text" placeholder="Zakir, Bittu…"></label><label>Amount owed<input id="bp-amt" type="number" step="any" inputmode="decimal" placeholder="0"></label><div class="act"><button data-act="addperson" class="pr">Add person</button></div></div>';
- h+='<div class="act"><button data-act="bufin">+ Cash in</button><button data-act="bufspend">+ Other spend</button><button data-act="bufborrow">+ Borrow</button><button data-act="bufrepay">+ Repay</button></div>';
- h+='<h2>Buffer movements</h2>'+(moves.length?moves.map(x=>'<article class="cd" data-e="log:'+x.id+'"><div class="hd"><div><b>'+logLabel(x)+'</b><small>'+esc(x.date||'')+(x.note?' · '+esc(x.note):'')+'</small></div><span class="am">'+potOf(x)+'</span></div></article>').join(''):empty('No buffer entries yet','Log cash in, other spending, borrowing and repayments here.'));
+  '<div class="row"><span>Lent</span><span>−'+inr(flow('Lend'))+'</span></div>'+
+  '<div class="row"><span>Collected</span><span>+'+inr(flow('Collect'))+'</span></div></div>';
+ h+='<h2>People owe me</h2><div class="pn">'+(ppl.length?ppl.map(p=>'<div class="row"><span>'+esc(p.name)+'<br><small>'+inr(p.owed)+' owed to you</small></span><span><button data-act="bufcollect:'+esc(p.name)+'">Collect</button> <button data-act="buflend:'+esc(p.name)+'">Lend</button>'+(p.id?' <button data-act="delperson:'+p.id+'">×</button>':'')+'</span></div>').join(''):'<small>No one listed yet. Add a person below.</small>')+
+  '<label>Name<input id="bp-name" type="text" placeholder="Zakir, Bittu…"></label><label>Amount they owe<input id="bp-amt" type="number" step="any" inputmode="decimal" placeholder="0"></label><div class="act"><button data-act="addperson" class="pr">Add person</button></div></div>';
+ h+='<div class="act"><button data-act="bufin">+ Cash in</button><button data-act="bufspend">+ Other spend</button><button data-act="buflend">+ Lend</button><button data-act="bufcollect">+ Collect</button></div>';
+ h+='<h2>Move between pots</h2><div class="pn"><label>Amount<input id="tr-amt" type="number" step="any" inputmode="decimal" placeholder="0"></label><label>From<select id="tr-from"><option>Bank</option><option>Cash</option></select></label><small>Moves money from one pot to the other. Total buffer stays the same. Example: someone pays you UPI and you give them cash — move from Cash to Bank.</small><div class="act"><button data-act="transfer" class="pr">Move</button></div></div>';
+ h+='<h2>Buffer movements</h2>'+(moves.length?moves.map(x=>'<article class="cd" data-e="log:'+x.id+'"><div class="hd"><div><b>'+logLabel(x)+'</b><small>'+esc(x.date||'')+(x.note?' · '+esc(x.note):'')+'</small></div><span class="am">'+potOf(x)+'</span></div></article>').join(''):empty('No buffer entries yet','Log cash in, other spending, lending, collections and transfers here.'));
  return h}
 function vUpd(){
  const rows=S.cards.slice().sort((a,b)=>(+b.out||0)-(+a.out||0)).map(c=>'<div class="urow"><div><b>'+esc(c.bank+' '+(c.name||''))+'</b><small>••'+esc(c.last4||'')+'</small></div><input type="number" step="any" inputmode="decimal" data-upd="cards|'+c.id+'|out" value="'+(c.out||'')+'" aria-label="Outstanding"><input type="number" step="any" inputmode="decimal" data-upd="cards|'+c.id+'|stmt" value="'+(c.stmt||'')+'" aria-label="Statement bill"><input type="number" step="any" inputmode="decimal" data-upd="cards|'+c.id+'|min" value="'+(c.min||'')+'" aria-label="Minimum due"></div>').join('');
@@ -425,7 +431,7 @@ cards:[['bank','Bank','t','',1],['name','Card name','t'],['last4','Last 4 digits
 emis:[['card','On card','c'],['label','What it is','t','',1],['amt','Principal converted','m'],['rate','Interest % per year','m'],['ten','Tenure in months','m'],
  ['start','First instalment date','date'],['inst','Instalment amount','m','Leave blank to calculate it'],['fee','Processing fee paid','m']],
 loans:[['name','Lender or loan','t','',1],['out','Outstanding','m'],['emi','EMI per month','m'],['rate','Interest % per year','m'],['due','EMI day of month','d']],
-log:[['date','Date','date'],['card','Card','c'],['kind','Type','s',['APDCL draw','Bill paid','Cash in','Other spend','Borrow','Repay']],['pot','Buffer pot','s',['Bank','Cash']],['person','Person','t','For Borrow / Repay — who you owe'],['amt','Amount','m'],['fee','Fees lost','m','Gateway or wallet fee, GST, late fee, interest'],['mode','Consumer paid by','s',['','Cash','Bank']],['note','Consumer / bill','t','Example: APDCL prepaid recharge, consumer name or number']]};
+log:[['date','Date','date'],['card','Card','c'],['kind','Type','s',['APDCL draw','Bill paid','Cash in','Other spend','Lend','Collect','Transfer']],['pot','Buffer pot','s',['Bank','Cash']],['person','Person','t','For Lend / Collect — who owes you'],['amt','Amount','m'],['fee','Fees lost','m','Gateway or wallet fee, GST, late fee, interest'],['mode','Consumer paid by','s',['','Cash','Bank']],['note','Consumer / bill','t','Example: APDCL prepaid recharge, consumer name or number']]};
 const TT={cards:'card',emis:'EMI',loans:'loan',log:'rotation entry'};
 function fld(f,v){const k=f[0],l=f[1],t=f[2],h=f[3],r=f[4]?' required':'';let i;
  if(t==='s')i='<select name="'+k+'">'+h.map(o=>'<option'+(o===v?' selected':'')+'>'+o+'</option>').join('')+'</select>';
@@ -459,13 +465,15 @@ document.addEventListener('click',ev=>{const t=ev.target.closest('[data-e],[data
  else if(d.act&&d.act.slice(0,9)==='paidbill:'){const id=d.act.slice(9),c=card(id),ym2=new Date().toISOString().slice(0,7);if(c&&+c.stmt>0){const rem=+c.stmt-paidAmtM(id,ym2);if(rem>0){S.log.push({id:uid(),date:new Date().toISOString().slice(0,10),card:id,kind:'Bill paid',amt:rem,fee:0,mode:'',pot:'Bank',note:rem<+c.stmt?'Paid rest in full':'Paid in full',bill:+c.stmt});adjOut(id,-rem);save()}}}
  else if(d.act&&d.act.slice(0,8)==='logdraw:'){const id=d.act.slice(8);edit('log','',{card:id,kind:'APDCL draw'})}
  else if(d.act&&d.act.slice(0,9)==='partbill:'){const id=d.act.slice(9),c=card(id),ym2=new Date().toISOString().slice(0,7),rem=c?+c.stmt-paidAmtM(id,ym2):0;if(c&&rem>0)edit('log','',{card:id,kind:'Bill paid',amt:rem,note:'Part payment',pot:'Bank'})}
- else if(d.act&&d.act.slice(0,10)==='bufborrow:'){edit('log','',{kind:'Borrow',person:d.act.slice(10)})}
- else if(d.act&&d.act.slice(0,9)==='bufrepay:'){edit('log','',{kind:'Repay',person:d.act.slice(9)})}
+ else if(d.act&&d.act.slice(0,8)==='buflend:'){edit('log','',{kind:'Lend',person:d.act.slice(8)})}
+ else if(d.act&&d.act.slice(0,11)==='bufcollect:'){edit('log','',{kind:'Collect',person:d.act.slice(11)})}
  else if(d.act==='bufin')edit('log','',{kind:'Cash in'});
  else if(d.act==='bufspend')edit('log','',{kind:'Other spend'});
- else if(d.act==='bufborrow')edit('log','',{kind:'Borrow'});
- else if(d.act==='bufrepay')edit('log','',{kind:'Repay'});
- else if(d.act==='addperson'){const n=($('#bp-name')||{}).value||'',a=+((($('#bp-amt')||{}).value)||0);if(!String(n).trim()){alert('Type the person\'s name first.');return}if(!S.buf)S.buf={bank0:0,cash0:0,people:[]};S.buf.people.push({id:uid(),name:String(n).trim(),owed:a});save()}
+ else if(d.act==='buflend')edit('log','',{kind:'Lend'});
+ else if(d.act==='bufcollect')edit('log','',{kind:'Collect'});
+ else if(d.act==='tglbufset'){bufSetOpen=!bufSetOpen;render()}
+ else if(d.act==='transfer'){const a=+((($('#tr-amt')||{}).value)||0),f=(($('#tr-from')||{}).value||'Bank');if(!a||a<=0){alert('Type the amount to move first.');return}S.log.push({id:uid(),date:new Date().toISOString().slice(0,10),card:'',kind:'Transfer',amt:a,fee:0,mode:'',pot:f,person:'',note:''});save()}
+ else if(d.act==='addperson'){const n=($('#bp-name')||{}).value||'',a=+((($('#bp-amt')||{}).value)||0);if(!String(n).trim()){alert('Type the person\'s name first.');return}if(!S.buf)S.buf={bank0:0,cash0:0,start:null,people:[]};S.buf.people.push({id:uid(),name:String(n).trim(),owed:a});save()}
  else if(d.act&&d.act.slice(0,10)==='delperson:'){const id=d.act.slice(10);if(S.buf)S.buf.people=S.buf.people.filter(p=>p.id!==id);save()}
  else if(d.act==='snap')snap();
  else if(d.act==='imp')$('#imp').click();
